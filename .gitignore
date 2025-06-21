@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Environment variables and secrets
+.env
+
+*.env
+
+# Django migrations (optional, sometimes useful to track)
+**/migrations/*.pyc
+**/migrations/__pycache__/
+
+# VSCode / IDE settings
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Database
+*.sqlite3
+
+# OS and backup files
+.DS_Store
+Thumbs.db
+*.bak
+*.swp
+
+
+
+# Coverage and test
+htmlcov/
+.coverage
+.tox/
+.pytest_cache/
+nosetests.xml
+test-output/
