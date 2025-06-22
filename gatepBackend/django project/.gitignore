@@ -1,8 +1,12 @@
-
-# Environment variables and secrets
-.env
-
-*.env
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+.env/
 
 # Django migrations (optional, sometimes useful to track)
 **/migrations/*.pyc
