@@ -1,3 +1,4 @@
+
 from django.urls import path
 from talent_management.views import (
     ResumeBuilderAPIView,)
@@ -18,4 +19,5 @@ urlpatterns = [
     path('saved-jobs/unsave/', UnsaveJobView.as_view(), name='unsave-job'),
     path('job-postings/', JobPostingListCreateView.as_view(), name='jobposting-list-create'),
     path('job-postings/ai-score/', JobListWithMatchingScoreAPIView.as_view(), name='jobposting-ai-score'),
+
 ]

@@ -1,11 +1,7 @@
 from rest_framework import serializers
-from .models import Company, JobPosting, Application, Interview, SavedJob # Ensure SavedJob is imported
-
-# Import CustomUser, TalentProfile from talent_management.models
+from .models import Company, JobPosting, Application, Interview, SavedJob
 from talent_management.models import CustomUser, TalentProfile
-# Import FullResumeSerializer from talent_management.serializers for detailed application views
-from talent_management.serializers import FullResumeSerializer 
-
+from talent_management.serializers import FullResumeSerializer
 
 # Optional: Basic User Serializer for nested display
 class SimpleUserSerializer(serializers.ModelSerializer):
@@ -19,8 +15,7 @@ class TalentProfileBasicSerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer(read_only=True)
     class Meta:
         model = TalentProfile
-        # Fields relevant for a quick overview of the talent profile
-        fields = ['id', 'user', 'profile_summary', 'skills'] 
+        fields = ['id', 'user', 'profile_summary', 'skills']
 
 
 # --- Company Serializer ---
@@ -41,9 +36,8 @@ class CompanySerializer(serializers.ModelSerializer):
 class JobPostingSerializer(serializers.ModelSerializer):
     status_display = serializers.SerializerMethodField()
     job_type_display = serializers.SerializerMethodField()
-    experience_level_display = serializers.SerializerMethodField() 
-    
-    company_details = CompanySerializer(source='company', read_only=True) 
+    experience_level_display = serializers.SerializerMethodField()
+    company_details = CompanySerializer(source='company', read_only=True)
 
     class Meta:
         model = JobPosting
@@ -69,43 +63,33 @@ class JobPostingSerializer(serializers.ModelSerializer):
         
     def create(self, validated_data):
         request = self.context.get('request', None)
-        # Robustness: Check if request and user exist and user_role is defined
-        if request and request.user.is_authenticated and \
-           hasattr(request.user, 'user_role') and request.user.user_role == 'EMPLOYER':
+        if request and request.user.is_authenticated and hasattr(request.user, 'user_role') and request.user.user_role == 'EMPLOYER':
             employer_company = getattr(request.user, 'employer_company', None)
             if employer_company:
                 validated_data['company'] = employer_company
             else:
                 raise serializers.ValidationError("Employer user has no associated company.")
-        # If 'company' is not in validated_data and it's required by the model,
-        # Django's model validation will usually catch this. 
-        # The `pass` here means no specific serializer-level error is raised
-        # if the user isn't an employer AND hasn't provided a company.
-        pass
-
+        elif 'company' not in validated_data:
+            raise serializers.ValidationError({"company": "This field is required if not auto-assigned by employer."})
         return super().create(validated_data)
-
 
 # --- Application Serializer (General purpose, used by Talent to create/list their own) ---
 class ApplicationSerializer(serializers.ModelSerializer):
-    talent_details = SimpleUserSerializer(source='talent.user', read_only=True) # Access talent's CustomUser details
+    talent_details = SimpleUserSerializer(source='talent.user', read_only=True)
     job_posting_details = JobPostingSerializer(source='job_posting', read_only=True)
     status_display = serializers.SerializerMethodField()
-    
 
     class Meta:
         model = Application
         fields = [
             'id', 'job_posting', 'job_posting_details', 'talent', 'talent_details',
             'cover_letter', 'resume', 'application_date', 'status', 'status_display',
-            'notes', 'created_at','interviews', 'updated_at', 'score' 
+            'notes', 'created_at', 'updated_at', 'score', 'interviews'
         ]
-        read_only_fields = ['talent', 'application_date', 'created_at', 'updated_at', 'score'] # Talent cannot directly set score
+        read_only_fields = ['talent', 'application_date', 'created_at', 'updated_at', 'score']
 
     def get_status_display(self, obj):
         return obj.get_status_display()
-
-
 
 
 # --- Interview Serializer ---
@@ -129,34 +113,22 @@ class InterviewSerializer(serializers.ModelSerializer):
 
 # --- Saved Job Serializers ---
 class SavedJobSerializer(serializers.ModelSerializer):
-    # Nested serializer to display the full job details when listing saved jobs
-    job_posting = JobPostingSerializer(read_only=True) 
-
+    job_posting = JobPostingSerializer(read_only=True)
     class Meta:
         model = SavedJob
         fields = ['id', 'job_posting', 'saved_at']
-        read_only_fields = ['id', 'job_posting', 'saved_at'] # Talent cannot directly set these
+        read_only_fields = ['id', 'job_posting', 'saved_at']
 
-# Serializer for creating/deleting SavedJob instances (expects only job_posting ID)
 class SaveJobActionSerializer(serializers.ModelSerializer):
     class Meta:
         model = SavedJob
-        fields = ['job_posting'] # Only need job_posting ID to save/unsave
-
+        fields = ['job_posting']
 
 # --- NEW: Employer Application Management Serializers ---
-
 class ApplicationListSerializer(serializers.ModelSerializer):
-    """
-    Serializer for listing applications for an employer, providing key details
-    of the talent and application status for a specific job posting.
-    """
     talent_user_details = SimpleUserSerializer(source='talent.user', read_only=True)
     talent_profile_summary = serializers.CharField(source='talent.profile_summary', read_only=True)
-    
-    # Method field to get the URL of the talent's latest resume PDF
     talent_resume_latest_url = serializers.SerializerMethodField()
-    
     status_display = serializers.SerializerMethodField()
 
     class Meta:
@@ -164,15 +136,12 @@ class ApplicationListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'talent', 'talent_user_details', 'talent_profile_summary',
             'talent_resume_latest_url', 
-            'application_date', 'status', 'status_display', 'score' # score for match percentage
+            'application_date', 'status', 'status_display', 'score'
         ]
-        read_only_fields = fields # All fields read-only for listing
+        read_only_fields = fields
 
     def get_talent_resume_latest_url(self, obj):
-        # Access the related_name 'resumes' from TalentProfile to Resume model
-        # Assuming `obj.talent` is a TalentProfile instance
         if hasattr(obj.talent, 'resumes') and obj.talent.resumes.exists():
-            # Get the most recently updated resume associated with this talent profile
             latest_resume = obj.talent.resumes.order_by('-updated_at').first()
             if latest_resume and latest_resume.resume_pdf and hasattr(latest_resume.resume_pdf, 'url'):
                 request = self.context.get('request')
@@ -183,22 +152,10 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     def get_status_display(self, obj):
         return obj.get_status_display()
 
-
 class ApplicationDetailSerializer(serializers.ModelSerializer):
-    """
-    Serializer for detailed view of a single application for an employer.
-    Includes full resume details and related interviews.
-    """
     talent_user_details = SimpleUserSerializer(source='talent.user', read_only=True)
-    # Embed the full resume serializer from talent_management.
-    # Assumes TalentProfile has a related_name 'resumes' to the Resume model (e.g., resumes.all()).
-    # `many=True` is used because a TalentProfile might have multiple resumes, even if only one is current.
-    # The FullResumeSerializer will handle selecting the relevant one or displaying all if configured.
-    talent_full_resume = FullResumeSerializer(source='talent.resumes.all', many=True, read_only=True) 
-    
-    # List related interviews for this application (assuming Application model has a related_name 'interviews' to Interview model)
-    interviews = InterviewSerializer(many=True, read_only=True) 
-
+    talent_full_resume = FullResumeSerializer(source='talent.resumes.all', many=True, read_only=True)
+    interviews = InterviewSerializer(many=True, read_only=True)
     job_posting_details = JobPostingSerializer(source='job_posting', read_only=True)
     status_display = serializers.SerializerMethodField()
 

@@ -1,4 +1,4 @@
-# File: gatep_platform_backend/auth_management/serializers.py
+
 
 from django.contrib.auth import authenticate
 from rest_framework import serializers
@@ -6,13 +6,10 @@ import re
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework import status
+from django.db import transaction  # Import transaction for atomic operations
 
 # IMPORTANT: Import CustomUser and UserRole from talent_management.models
 from talent_management.models import CustomUser, UserRole, TalentProfile, EmployerProfile
-# File: gatep_platform_backend/auth_management/serializers.py
-from django.db import transaction # Import transaction for atomic operations
-
-
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -190,6 +187,7 @@ class OTPVerificationSerializer(serializers.Serializer):
 
         data['user'] = user
         return data
+
 class CustomUserAdminSerializer(serializers.ModelSerializer):
     """
     Serializer for Admin to view, create, and update CustomUser objects.
@@ -223,7 +221,7 @@ class CustomUserAdminSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("Password must contain at least one lowercase letter.")
             if not re.search(r'[0-9]', value):
                 raise serializers.ValidationError("Password must contain at least one digit.")
-            if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>/?`~]', value):
+            if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'\",.<>/?`~]', value):
                 raise serializers.ValidationError("Password must contain at least one special character.")
         return value
 
@@ -283,7 +281,6 @@ class CustomUserAdminSerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-
 class UserRoleUpdateSerializer(serializers.ModelSerializer):
     """
     Serializer specifically for an admin to update a user's role and active status.
@@ -320,5 +317,18 @@ class UserRoleUpdateSerializer(serializers.ModelSerializer):
         if new_is_active is not None:
             instance.is_active = new_is_active
 
+        instance.save()
+        return instance
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = ('username', 'email', 'phone_number', 'first_name', 'last_name')
+        read_only_fields = ('username', 'email')  # Usually, username/email are not updatable
+
+    def update(self, instance, validated_data):
+        instance.phone_number = validated_data.get('phone_number', instance.phone_number)
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.save()
         return instance

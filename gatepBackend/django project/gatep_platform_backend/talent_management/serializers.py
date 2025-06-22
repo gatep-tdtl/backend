@@ -11,7 +11,6 @@ class CustomUserLiteSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ['username', 'email', 'phone_number', 'first_name', 'last_name']
 
-
 class TalentProfileLiteSerializer(serializers.ModelSerializer):
     user = CustomUserLiteSerializer(read_only=True)
     class Meta:
@@ -102,10 +101,10 @@ class ResumeEducationSerializer(serializers.ModelSerializer):
 
 class ResumeOtherDetailsSerializer(serializers.ModelSerializer):
     volunteering_experience = serializers.CharField(required=False, allow_blank=True) # TextField
-    extracurriculars = serializers.CharField(required=False, allow_blank=True)       # TextField
-    references = serializers.CharField(required=False, allow_blank=True)             # TextField
-    awards = serializers.CharField(required=False, allow_blank=True)                 # TextField
-    publications = serializers.CharField(required=False, allow_blank=True)           # TextField
+    extracurriculars = serializers.CharField(required=False, allow_blank=True)      # TextField
+    references = serializers.CharField(required=False, allow_blank=True)           # TextField
+    awards = serializers.CharField(required=False, allow_blank=True)               # TextField
+    publications = serializers.CharField(required=False, allow_blank=True)         # TextField
 
     class Meta:
         model = Resume
@@ -117,10 +116,7 @@ class ResumeOtherDetailsSerializer(serializers.ModelSerializer):
 
 
 class FullResumeSerializer(serializers.ModelSerializer):
-    talent_id = CustomUserLiteSerializer(read_only=True) 
-
-    # SerializerMethodField for FileFields to return full URLs
-    # These methods require 'request' in serializer context.
+    talent_id = CustomUserLiteSerializer(read_only=True)
     profile_photo_url = serializers.SerializerMethodField()
     resume_pdf_url = serializers.SerializerMethodField()
     tenth_result_upload_url = serializers.SerializerMethodField()
@@ -141,7 +137,7 @@ class FullResumeSerializer(serializers.ModelSerializer):
             if request is not None:
                 return request.build_absolute_uri(obj.resume_pdf.url)
         return None
-    
+
     def get_tenth_result_upload_url(self, obj):
         if obj.tenth_result_upload and hasattr(obj.tenth_result_upload, 'url'):
             request = self.context.get('request')
@@ -155,7 +151,7 @@ class FullResumeSerializer(serializers.ModelSerializer):
             if request is not None:
                 return request.build_absolute_uri(obj.twelfth_result_upload.url)
         return None
-    
+
     def get_diploma_result_upload_url(self, obj):
         if obj.diploma_result_upload and hasattr(obj.diploma_result_upload, 'url'):
             request = self.context.get('request')
@@ -172,7 +168,6 @@ class FullResumeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Resume
-        # Explicitly list fields, including the new URL fields
         fields = [
             'id', 'talent_id', 
             'name', 'email', 'phone', 'profile_photo', 'profile_photo_url', 'resume_pdf', 'resume_pdf_url',
@@ -187,20 +182,19 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'twelfth_board_name', 'twelfth_college_name', 'twelfth_year_passing', 'twelfth_score', 'twelfth_result_upload', 'twelfth_result_upload_url',
             'diploma_course_name', 'diploma_institution_name', 'diploma_year_passing', 'diploma_score', 'diploma_result_upload', 'diploma_result_upload_url',
             'degree_name', 'degree_institution_name', 'degree_specialization', 'degree_year_passing', 'degree_score', 'degree_result_upload', 'degree_result_upload_url',
-            'created_at', 'updated_at', 'generated_summary', 'generated_preferences' # Include generated fields if they exist
+            'created_at', 'updated_at', 'generated_summary', 'generated_preferences'
         ]
         read_only_fields = [
             'id', 'talent_id', 'created_at', 'updated_at', 
             'profile_photo_url', 'resume_pdf_url', 'tenth_result_upload_url', 
             'twelfth_result_upload_url', 'diploma_result_upload_url', 'degree_result_upload_url',
-            'document_verification', 'generated_summary', 'generated_preferences' # Keep these read-only for general use
+            'document_verification', 'generated_summary', 'generated_preferences'
         ]
 
     def update(self, instance, validated_data):
         for field_name in ['skills', 'experience', 'projects', 'certifications', 'awards', 'publications', 'interests', 'references', 'preferences', 'open_source_contributions', 'generated_preferences']:
             if field_name in validated_data and isinstance(validated_data[field_name], (list, dict)):
                 validated_data[field_name] = json.dumps(validated_data[field_name])
-
         return super().update(instance, validated_data)
 
 
@@ -215,7 +209,6 @@ class JobPostingSerializer(serializers.ModelSerializer):
     company = CompanyNameSerializer(read_only=True) 
     
     # These fields are choices, so we might want to display their human-readable values
-    # These will be populated by get_FOO_display methods on the JobPosting model itself.
     job_type = serializers.CharField(source='get_job_type_display', read_only=True)
     experience_level = serializers.CharField(source='get_experience_level_display', read_only=True)
     status = serializers.CharField(source='get_status_display', read_only=True) # Also include status display

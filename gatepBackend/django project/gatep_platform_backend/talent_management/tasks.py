@@ -9,11 +9,14 @@ from django.utils import timezone
 from datetime import datetime
 from decimal import Decimal
 import json # For handling JSON string conversions (e.g., for logging)
+
 from employer_management.models import JobType, ExperienceLevel, Company # Assuming Company also imported for job processing
+
 # Import your JobListing and CustomUser models from their respective apps
 from .models import JobListing # From talent_management app
 from django.contrib.auth import get_user_model # To get CustomUser from auth_management app
 CustomUser = get_user_model()
+
 
 def map_employment_type(api_type):
     if api_type:
@@ -30,6 +33,7 @@ def map_experience_level(api_level): # Assuming you'd have a similar function fo
             return api_level
     return None
 # --- Helper functions (from previous turn, include these in this file) ---
+
 
 def map_work_location_type(api_type):
     if api_type:
