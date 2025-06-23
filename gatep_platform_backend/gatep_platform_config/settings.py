@@ -76,14 +76,14 @@ WSGI_APPLICATION = 'gatep_platform_config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'tdtl_gatep',
-        'USER': 'root',
-        'PASSWORD': 'manager',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'NAME': 'gatep_platform_db',
+        'USER': 'dbmasteruser',
+        'PASSWORD': 'database9014',
+        'HOST': 'ls-f8259bafe38561c18d0d411f37aefbfabc0ff7bf.citdgny2wnek.ap-south-1.rds.amazonaws.com',  # or your database host
+        'PORT': '3306',# or your database port
         'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-        }
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'"
+        },
     }
 }
 
