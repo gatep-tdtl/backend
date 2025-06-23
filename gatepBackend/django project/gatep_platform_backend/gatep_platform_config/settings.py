@@ -77,9 +77,9 @@ WSGI_APPLICATION = 'gatep_platform_config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'gatep_talent_db',
-        'USER': 'tdtl',
-        'PASSWORD': 'tdtl',
+        'NAME': 'tdtl_gatep',
+        'USER': 'root',
+        'PASSWORD': 'manager',
         'HOST': 'localhost',
         'PORT': '3306',
         'OPTIONS': {
