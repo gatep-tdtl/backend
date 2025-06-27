@@ -3,6 +3,7 @@ from .models import Company, JobPosting, Application, Interview, SavedJob
 from talent_management.models import CustomUser, TalentProfile
 from talent_management.serializers import FullResumeSerializer
 
+
 # Optional: Basic User Serializer for nested display
 class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -78,13 +79,13 @@ class ApplicationSerializer(serializers.ModelSerializer):
     talent_details = SimpleUserSerializer(source='talent.user', read_only=True)
     job_posting_details = JobPostingSerializer(source='job_posting', read_only=True)
     status_display = serializers.SerializerMethodField()
-
+    
     class Meta:
         model = Application
         fields = [
             'id', 'job_posting', 'job_posting_details', 'talent', 'talent_details',
             'cover_letter', 'resume', 'application_date', 'status', 'status_display',
-            'notes', 'created_at', 'updated_at', 'score', 'interviews'
+            'notes', 'created_at', 'updated_at', 'score'
         ]
         read_only_fields = ['talent', 'application_date', 'created_at', 'updated_at', 'score']
 
@@ -97,6 +98,19 @@ class InterviewSerializer(serializers.ModelSerializer):
     application_details = ApplicationSerializer(source='application', read_only=True)
     interviewer_details = SimpleUserSerializer(source='interviewer', read_only=True)
     interview_status_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Interview
+        fields = [
+            'id', 'application', 'application_details', 'interviewer', 'interviewer_details',
+            'interview_type', 'scheduled_at', 'location', 'interview_status', 'interview_status_display',
+            'feedback', 'score', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_interview_status_display(self, obj):
+        return obj.get_interview_status_display()
+
 
     class Meta:
         model = Interview

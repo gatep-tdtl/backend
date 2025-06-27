@@ -60,6 +60,14 @@ class LoginView(generics.GenericAPIView):
             "access": jwt_token_serializer.validated_data["access"],
             "refresh": jwt_token_serializer.validated_data["refresh"],
         }
+        # Add company info if user is employer
+        if user.user_role == UserRole.EMPLOYER:
+            from employer_management.models import Company
+            company = Company.objects.filter(user=user).first()
+            if company:
+                response_data["company"] = company.id
+            else:
+                response_data["company"] = "register your company"
         return Response(response_data, status=status.HTTP_200_OK)
 
 # OTP Verification View

@@ -36,9 +36,12 @@ class CompanyListCreateView(generics.ListCreateAPIView):
         serializer.save(user=self.request.user)
 
 class CompanyDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Company.objects.all()
     serializer_class = CompanySerializer
     permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+
+    def get_object(self):
+        # Return only the company associated with the current employer
+        return get_object_or_404(Company, user=self.request.user)
 
 class JobPostingListCreateView(generics.ListCreateAPIView):
     serializer_class = JobPostingSerializer
@@ -66,9 +69,11 @@ class JobPostingListCreateView(generics.ListCreateAPIView):
         return JobPosting.objects.none() # Fallback for other roles or unauthenticated (if not caught above)
 
     def perform_create(self, serializer):
-        # Ensure company exists for the current user before saving
-        company = get_object_or_404(Company, user=self.request.user)
-        serializer.save(company=company)
+        # Only allow creation if employer has a company profile
+        employer_company = getattr(self.request.user, 'employer_company', None)
+        if not employer_company:
+            raise serializers.ValidationError({"detail": "You must register your company before posting jobs."})
+        serializer.save(company=employer_company)
 
 class JobPostingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = JobPosting.objects.all()
@@ -85,15 +90,11 @@ class JobPostingDetailView(generics.RetrieveUpdateDestroyAPIView):
 class ApplicationListCreateView(generics.ListCreateAPIView):
     # This view is primarily for Talent users to list/create applications.
     serializer_class = ApplicationSerializer 
-    
-    # --- ADD THIS LINE TO ALLOW ONLY POST METHOD ---
     http_method_names = ['get','post'] 
-    # --- END ADDITION ---
-    
+
     def get_permissions(self):
         if self.request.method == 'POST':
             return [permissions.IsAuthenticated()] 
-        # Anyone authenticated can list applications (further filtered by get_queryset)
         return [permissions.IsAuthenticated()]
 
     def get_queryset(self):
@@ -102,51 +103,34 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
             return Application.objects.none()
 
         if hasattr(user, 'user_role') and user.user_role == UserRole.TALENT:
-            talent_profile = get_object_or_404(TalentProfile, user=user)
-            # Original filtering: Application.objects.filter(talent=talent_profile.user)
-            # Added for performance: .select_related('job_posting', 'job_posting__company') and .prefetch_related('interviews')
-            return Application.objects.filter(talent=talent_profile.user) \
+            # Use CustomUser directly
+            return Application.objects.filter(talent=user) \
                                .select_related('job_posting', 'job_posting__company') \
                                .prefetch_related('interviews') \
                                .order_by('-application_date')
         elif hasattr(user, 'user_role') and user.user_role == UserRole.EMPLOYER:
             company = get_object_or_404(Company, user=user)
-            # Original filtering: Application.objects.filter(job_posting__company=company)
-            # Added for performance: .select_related('job_posting', 'job_posting__company') and .prefetch_related('interviews')
             return Application.objects.filter(job_posting__company=company) \
                                .select_related('job_posting', 'job_posting__company') \
                                .prefetch_related('interviews') \
                                .order_by('-application_date')
         return Application.objects.none()
+
     def perform_create(self, serializer):
-        # Ensure the user is a talent and has a profile
+        # Ensure the user is a talent
+        print ("reached to create application")
         if not hasattr(self.request.user, 'user_role') or self.request.user.user_role != UserRole.TALENT:
             raise serializers.ValidationError({"detail": "Only Talent users can submit applications."})
 
-        talent_profile = get_object_or_404(TalentProfile, user=self.request.user)
-        
         job_posting = serializer.validated_data.get('job_posting')
         if not job_posting:
             raise serializers.ValidationError({"job_posting": "Job posting is required."})
 
-        # --- COMPATIBILITY CHECK (STILL COMMENTED OUT) ---
-        # if not self._is_profile_compatible_with_job(talent_profile, job_posting):
-        #    raise serializers.ValidationError({"detail": "Your profile is not compatible with this job's requirements."})
-        # --- END COMPATIBILITY CHECK ---
-
-        if Application.objects.filter(job_posting=job_posting, talent=talent_profile.user).exists():
+        if Application.objects.filter(job_posting=job_posting, talent=self.request.user).exists():
             raise serializers.ValidationError({"detail": "You have already applied for this job."})
 
-        serializer.save(talent=talent_profile.user, status=ApplicationStatus.APPLIED)
+        serializer.save(talent=self.request.user, status=ApplicationStatus.APPLIED)
 
-    # Helper method for compatibility check (STILL COMMENTED OUT)
-    # def _is_profile_compatible_with_job(self, talent_profile, job_posting):
-    #    # ... (your commented out compatibility logic)
-    #    return True
-    # Helper method for compatibility check
-
-
-    
 class ApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
     # This view is for general application detail, used by talent to withdraw or employer to update
     queryset = Application.objects.all()
@@ -233,12 +217,11 @@ class SaveJobView(APIView):
         except JobPosting.DoesNotExist:
             return Response({'error': 'Job Posting not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        talent_profile = get_object_or_404(TalentProfile, user=request.user)
-
-        if SavedJob.objects.filter(talent=talent_profile, job_posting=job_posting).exists():
+        # Use request.user directly as talent
+        if SavedJob.objects.filter(talent=request.user, job_posting=job_posting).exists():
             return Response({'message': 'Job already saved.'}, status=status.HTTP_200_OK)
 
-        saved_job = SavedJob.objects.create(talent=talent_profile, job_posting=job_posting)
+        saved_job = SavedJob.objects.create(talent=request.user, job_posting=job_posting)
         serializer = SavedJobSerializer(saved_job)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -248,19 +231,15 @@ class UnsaveJobView(APIView):
     def delete(self, request, *args, **kwargs):
         if not (hasattr(request.user, 'user_role') and request.user.user_role == UserRole.TALENT):
             raise permissions.PermissionDenied("Only talent users can unsave jobs.")
-            
+        
         job_posting_id = request.data.get('job_posting_id')
         if not job_posting_id:
             return Response({'error': 'job_posting_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            talent_profile = get_object_or_404(TalentProfile, user=request.user)
-            saved_job = SavedJob.objects.get(talent=talent_profile, job_posting__id=job_posting_id)
+            saved_job = SavedJob.objects.get(talent=request.user, job_posting__id=job_posting_id)
             saved_job.delete()
             return Response({'message': 'Job unsaved successfully.'}, status=status.HTTP_204_NO_CONTENT)
-        except TalentProfile.DoesNotExist:
-            # Raising PermissionDenied for user-related permission issues
-            raise permissions.PermissionDenied("Talent profile not found for the user.") 
         except SavedJob.DoesNotExist:
             return Response({'error': 'Saved job not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -271,9 +250,7 @@ class ListSavedJobsView(generics.ListAPIView):
     def get_queryset(self):
         if not (hasattr(self.request.user, 'user_role') and self.request.user.user_role == UserRole.TALENT):
             raise permissions.PermissionDenied("Only talent users can view saved jobs.")
-            
-        talent_profile = get_object_or_404(TalentProfile, user=self.request.user)
-        return SavedJob.objects.filter(talent=talent_profile).select_related('job_posting__company')
+        return SavedJob.objects.filter(talent=self.request.user).select_related('job_posting__company')
 
 
 # --- NEW EMPLOYER-SPECIFIC APPLICATION VIEWS (AS REQUESTED) ---
@@ -374,15 +351,18 @@ class JobListWithMatchingScoreAPIView(APIView):
 
         try:
             user_skills = json.loads(resume.skills) if resume.skills else []
+            print(user_skills)
         except Exception:
             user_skills = []
 
         jobs = JobPosting.objects.filter(is_active=True, status='PUBLISHED').order_by('-posted_date')
-
+        print(jobs)
         job_list = []
         for job in jobs:
             job_required_skills = job.required_skills if hasattr(job, 'required_skills') and job.required_skills else []
+            print(job_required_skills)
             score = get_ai_match_score(user_skills, job_required_skills)
+            print(score)
             job_list.append({
                 'id': job.id,
                 'title': job.title,
@@ -390,3 +370,14 @@ class JobListWithMatchingScoreAPIView(APIView):
                 'matching_percentage': score
             })
         return Response(job_list)
+
+class EmployerCompanyView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+
+    def get(self, request):
+        try:
+            company = Company.objects.get(user=request.user)
+        except Company.DoesNotExist:
+            return Response({'detail': 'Register your company first.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = CompanySerializer(company)
+        return Response(serializer.data, status=status.HTTP_200_OK)
