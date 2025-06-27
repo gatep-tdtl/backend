@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob
+from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
     CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
@@ -261,17 +261,19 @@ class EmployerApplicationListForJobView(generics.ListAPIView):
     Filters applications by job_posting_id from URL and ensures employer owns the job.
     """
     serializer_class = ApplicationListSerializer 
-    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
     
     def get_queryset(self):
         job_posting_id = self.kwargs['job_posting_id']
         job_posting = get_object_or_404(JobPosting, pk=job_posting_id)
+        print (job_posting)
         self.check_object_permissions(self.request, job_posting)
 
         queryset = Application.objects.filter(job_posting=job_posting).order_by('-application_date')
 
+
         # Only keep valid related lookups
-        queryset = queryset.select_related('talent', 'talent__talentprofile')  # ✅ Safe
+        # queryset = queryset.select_related('talent')  # ✅ Safe
         return queryset
 
     def get(self, request, *args, **kwargs):
