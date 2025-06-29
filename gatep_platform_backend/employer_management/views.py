@@ -238,6 +238,7 @@ class UnsaveJobView(APIView):
 
         try:
             saved_job = SavedJob.objects.get(talent=request.user, job_posting__id=job_posting_id)
+            print(saved_job)
             saved_job.delete()
             return Response({'message': 'Job unsaved successfully.'}, status=status.HTTP_204_NO_CONTENT)
         except SavedJob.DoesNotExist:
