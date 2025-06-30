@@ -1,19 +1,21 @@
 from django.urls import path
 from employer_management.views import (
-    CompanyListCreateView, CompanyDetailView,
+    CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView,
     SaveJobView, UnsaveJobView, ListSavedJobsView,
     EmployerApplicationListForJobView, EmployerApplicationDetailView,
     JobListWithMatchingScoreAPIView,
-    EmployerCompanyView
+    EmployerCompanyView , EmployerCompanyDetailView
 )
 
 urlpatterns = [
     # Company Management
     path('companies/', CompanyListCreateView.as_view(), name='company-list-create'),
     path('companies/<int:pk>/', CompanyDetailView.as_view(), name='company-detail'),
+    path('mycompany/' , EmployerCompanyDetailView.as_view(), name='my-company-detail'),
+    path('update-company/', EmployerCompanyUpdateView.as_view(), name='update-company'),
 
     # Job Postings
     path('job-postings/', JobPostingListCreateView.as_view(), name='jobposting-list-create'),

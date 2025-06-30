@@ -35,6 +35,39 @@ class CompanyListCreateView(generics.ListCreateAPIView):
             raise serializers.ValidationError({"detail": "This employer user already has an associated company profile."})
         serializer.save(user=self.request.user)
 
+class EmployerCompanyDetailView(APIView):
+    """
+    Get the company details for the currently authenticated employer.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+
+    def get(self, request):
+        try:
+            company = Company.objects.get(user=request.user)
+        except Company.DoesNotExist:
+            return Response({'detail': 'Register your company first.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = CompanySerializer(company)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+class EmployerCompanyUpdateView(APIView):
+    """
+    Update the company details for the currently authenticated employer.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+
+    def put(self, request):
+        try:
+            company = Company.objects.get(user=request.user)
+        except Company.DoesNotExist:
+            return Response({'detail': 'Register your company first.'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = CompanySerializer(company, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 class CompanyDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CompanySerializer
     permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
