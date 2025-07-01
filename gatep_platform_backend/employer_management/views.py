@@ -96,7 +96,7 @@ class JobPostingListCreateView(generics.ListCreateAPIView):
             # If authenticated and employer, show their company's job postings
             # Ensure employer_company exists before accessing it
             if hasattr(user, 'employer_company') and user.employer_company: 
-                return JobPosting.objects.filter(company=user.employer_company).order_by('-posted_date')
+                return JobPosting.objects.filter(company=user.employer_company, is_active=True).order_by('-posted_date')
             else:
                 return JobPosting.objects.none() # Employer without a company profile sees no jobs
         return JobPosting.objects.none() # Fallback for other roles or unauthenticated (if not caught above)
@@ -114,10 +114,47 @@ class JobPostingDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_permissions(self):
         if self.request.method == 'GET':
-            # Anyone can view a single job posting
             return [permissions.AllowAny()]
-        # Only authenticated EMPLOYER users who own the job posting can update/delete it
         return [permissions.IsAuthenticated(), IsEmployerUser(), IsJobPostingOwner()]
+
+    def delete(self, request, *args, **kwargs):
+        job_posting = self.get_object()
+        job_posting.is_active = False
+        job_posting.save()
+        return Response({'detail': 'Job posting soft deleted.'}, status=status.HTTP_204_NO_CONTENT)
+
+class PublishJobPostingView(APIView):
+    """
+    Endpoint to publish a draft job posting (set status to PUBLISHED).
+    Only the owner employer can perform this action.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
+
+    def put(self, request, pk):
+        job_posting = get_object_or_404(JobPosting, pk=pk)
+        self.check_object_permissions(request, job_posting)
+        if job_posting.status != JobStatus.DRAFT:
+            return Response({'detail': 'Only draft jobs can be published.'}, status=status.HTTP_400_BAD_REQUEST)
+        job_posting.status = JobStatus.PUBLISHED
+        job_posting.save()
+        return Response({'detail': 'Job posting published.'}, status=status.HTTP_200_OK)
+
+class CloseJobPostingView(APIView):
+    """
+    Endpoint to close a published job posting (set status to CLOSED).
+    Only the owner employer can perform this action.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
+
+    def delete(self, request, pk):
+        job_posting = get_object_or_404(JobPosting, pk=pk)
+        self.check_object_permissions(request, job_posting)
+        if job_posting.status != JobStatus.PUBLISHED:
+            return Response({'detail': 'Only published jobs can be closed.'}, status=status.HTTP_400_BAD_REQUEST)
+        job_posting.status = JobStatus.CLOSED
+        job_posting.is_active = False
+        job_posting.save()
+        return Response({'detail': 'Job posting closed.'}, status=status.HTTP_200_OK)
 
 
 class ApplicationListCreateView(generics.ListCreateAPIView):

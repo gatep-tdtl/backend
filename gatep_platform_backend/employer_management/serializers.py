@@ -140,19 +140,41 @@ class SaveJobActionSerializer(serializers.ModelSerializer):
 
 # --- NEW: Employer Application Management Serializers ---
 class ApplicationListSerializer(serializers.ModelSerializer):
-    talent_user_details = SimpleUserSerializer(source='talent.user', read_only=True)
-    talent_profile_summary = serializers.CharField(source='talent.profile_summary', read_only=True)
+    applicant_name = serializers.SerializerMethodField()
+    preferred_location = serializers.SerializerMethodField()
     talent_resume_latest_url = serializers.SerializerMethodField()
     status_display = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
         fields = [
-            'id', 'talent', 'talent_user_details', 'talent_profile_summary',
-            'talent_resume_latest_url', 
-            'application_date', 'status', 'status_display', 'score'
+            'id',
+            'talent',
+            'applicant_name',
+            'preferred_location',
+            'talent_resume_latest_url',
+            'application_date',
+            'status',
+            'status_display',
+            'score'
         ]
-        read_only_fields = fields
+
+    def get_applicant_name(self, obj):
+        # Assuming obj.talent is a CustomUser
+        if obj.talent:
+            return f"{obj.talent.first_name} {obj.talent.last_name}".strip()
+        return ""
+
+    def get_preferred_location(self, obj):
+        # Try to get from related TalentProfile or Resume
+        if hasattr(obj.talent, 'talentprofile') and obj.talent.talentprofile:
+            return getattr(obj.talent.talentprofile, 'preferred_location', "")
+        # Or from latest resume
+        resume = getattr(obj.talent, 'resumes', None)
+        if resume and resume.exists():
+            latest_resume = resume.order_by('-updated_at').first()
+            return getattr(latest_resume, 'preferred_location', "")
+        return ""
 
     def get_talent_resume_latest_url(self, obj):
         if hasattr(obj.talent, 'resumes') and obj.talent.resumes.exists():

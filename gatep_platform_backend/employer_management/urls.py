@@ -1,9 +1,9 @@
 from django.urls import path
 from employer_management.views import (
-    CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView,
+    CloseJobPostingView, CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
-    InterviewListCreateView, InterviewDetailView,
+    InterviewListCreateView, InterviewDetailView, PublishJobPostingView,
     SaveJobView, UnsaveJobView, ListSavedJobsView,
     EmployerApplicationListForJobView, EmployerApplicationDetailView,
     JobListWithMatchingScoreAPIView,
@@ -28,6 +28,8 @@ urlpatterns = [
     # Employer-Specific Applications
     path('job-postings/<int:job_posting_id>/applications/', EmployerApplicationListForJobView.as_view(), name='employer-job-applications-list'),
     path('job-postings/<int:job_posting_id>/applications/<int:pk>/', EmployerApplicationDetailView.as_view(), name='employer-job-application-detail'),
+    path('jobpostings/<int:pk>/publish/', PublishJobPostingView.as_view(), name='jobposting-publish'),
+    path('jobpostings/<int:pk>/close/', CloseJobPostingView.as_view(), name='jobposting-close'),
 
     # Interviews
     path('interviews/', InterviewListCreateView.as_view(), name='interview-list-create'),
