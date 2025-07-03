@@ -8,7 +8,7 @@ from .models import ApplicationStatus, Company, JobPosting, Application, Intervi
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
     CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
-    SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer
+    SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
 from utils.ai_match import get_ai_match_score
 from django.db.models import Avg
@@ -227,6 +227,11 @@ class ApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
 class InterviewListCreateView(generics.ListCreateAPIView):
     serializer_class = InterviewSerializer
     permission_classes = [permissions.IsAuthenticated, IsEmployerUser] 
+
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return InterviewListItemSerializer
+        return InterviewSerializer
 
     def get_queryset(self):
         user = self.request.user

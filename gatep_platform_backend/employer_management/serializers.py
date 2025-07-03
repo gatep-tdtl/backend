@@ -23,6 +23,7 @@ class TalentProfileBasicSerializer(serializers.ModelSerializer):
 class CompanySerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer(read_only=True)
     user_id = serializers.ReadOnlyField(source='user.id')
+    # logo = serializers.SerializerMethodField()  # override logo field
 
     class Meta:
         model = Company
@@ -32,6 +33,7 @@ class CompanySerializer(serializers.ModelSerializer):
             'logo', 'founded_date', 'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'user_id', 'created_at', 'updated_at']
+
 
 # --- Job Posting Serializer ---
 class JobPostingSerializer(serializers.ModelSerializer):
@@ -223,3 +225,70 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
         if 'request' in self.context:
             context['request'] = self.context['request']
         return context
+
+# ...existing code...
+
+class InterviewListItemSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.SerializerMethodField()
+    job_title = serializers.SerializerMethodField()
+    experience_level = serializers.SerializerMethodField()
+    location = serializers.SerializerMethodField()
+    interview_date = serializers.SerializerMethodField()
+    interview_time = serializers.SerializerMethodField()
+    interview_mode = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+    skills = serializers.SerializerMethodField()
+    notes = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Interview
+        fields = [
+            'id',
+            'candidate_name',
+            'job_title',
+            'experience_level',
+            'location',
+            'interview_date',
+            'interview_time',
+            'interview_mode',
+            'status',
+            'skills',
+            'notes',
+        ]
+
+    def get_candidate_name(self, obj):
+        # Assuming obj.application.talent has first_name and last_name
+        user = getattr(obj.application.talent, 'user', obj.application.talent)
+        return f"{user.first_name} {user.last_name}".strip() or user.username
+
+    def get_job_title(self, obj):
+        return obj.application.job_posting.title if obj.application and obj.application.job_posting else ""
+
+    def get_experience_level(self, obj):
+        return obj.application.job_posting.get_experience_level_display() if obj.application and obj.application.job_posting else ""
+
+    def get_location(self, obj):
+        return obj.application.job_posting.location if obj.application and obj.application.job_posting else ""
+
+    def get_interview_date(self, obj):
+        return obj.scheduled_at.date().isoformat() if obj.scheduled_at else ""
+
+    def get_interview_time(self, obj):
+        return obj.scheduled_at.strftime("%H:%M") if obj.scheduled_at else ""
+
+    def get_interview_mode(self, obj):
+        return obj.get_interview_type_display() if obj.interview_type else ""
+
+    def get_status(self, obj):
+        return obj.interview_status.lower() if obj.interview_status else ""
+
+    def get_skills(self, obj):
+        # Try to get from job posting required_skills
+        if obj.application and obj.application.job_posting and obj.application.job_posting.required_skills:
+            return obj.application.job_posting.required_skills
+        return []
+
+    def get_notes(self, obj):
+        return obj.feedback or ""
+
+# ...existing code...
