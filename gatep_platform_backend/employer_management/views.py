@@ -459,3 +459,61 @@ class EmployerCompanyView(APIView):
             return Response({'detail': 'Register your company first.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = CompanySerializer(company)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
+# ai score to talnet for the jobposting owned by the employer 
+class EmployerTalentMatchingScoresAPIView(APIView):
+    """
+    Returns, for each job owned by the logged-in employer, the AI match score for each talent (with a resume).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        # Ensure user is employer
+        if not hasattr(request.user, 'user_role') or request.user.user_role != UserRole.EMPLOYER:
+            return Response({"detail": "Only employer users can view this list."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Get employer's company
+        company = getattr(request.user, 'employer_company', None)
+        if not company:
+            return Response({"detail": "Employer has no associated company."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Get all active, published jobs for this company
+        jobs = JobPosting.objects.filter(company=company, is_active=True, status='PUBLISHED').order_by('-posted_date')
+
+        # Get all talents with at least one resume (not deleted)
+        resumes = Resume.objects.filter(is_deleted=False).select_related('talent_id')
+        # Map: talent_id -> latest resume
+        latest_resumes = {}
+        for resume in resumes.order_by('talent_id', '-updated_at'):
+            latest_resumes.setdefault(resume.talent_id_id, resume)
+
+        # Get all talents (users) who have a resume
+        talents = CustomUser.objects.filter(id__in=latest_resumes.keys(), user_role=UserRole.TALENT)
+
+        # Build result
+        result = []
+        for job in jobs:
+            job_required_skills = job.required_skills if job.required_skills else []
+            talents_scores = []
+            for talent in talents:
+                resume = latest_resumes.get(talent.id)
+                try:
+                    user_skills = json.loads(resume.skills) if resume and resume.skills else []
+                except Exception:
+                    user_skills = []
+                score = get_ai_match_score(user_skills, job_required_skills)
+                talents_scores.append({
+                    "talent_id": talent.id,
+                    "talent_name": f"{talent.first_name} {talent.last_name}".strip() or talent.username,
+                    "matching_percentage": score,
+                    "resume_id": resume.id if resume else None,
+                })
+            result.append({
+                "job_id": job.id,
+                "job_title": job.title,
+                "required_skills": job_required_skills,
+                "talent_matches": talents_scores,
+            })
+        return Response(result, status=status.HTTP_200_OK)

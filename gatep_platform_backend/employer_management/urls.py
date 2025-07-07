@@ -1,6 +1,6 @@
 from django.urls import path
 from employer_management.views import (
-    CloseJobPostingView, CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView,
+    CloseJobPostingView, CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView, EmployerTalentMatchingScoresAPIView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView, PublishJobPostingView,
@@ -42,6 +42,9 @@ urlpatterns = [
 
     # Job posts with AI score and summary
     path('job-postings/ai-score/', JobListWithMatchingScoreAPIView.as_view(), name='jobposting-ai-score'),
+  
+    # AI Score to Talent
+    path('ai-score-totalent/', EmployerTalentMatchingScoresAPIView.as_view(), name='jobposting-ai-score-to-talent'),
 
     # Employer Company
     path('my-company/', EmployerCompanyView.as_view(), name='employer-company'),
