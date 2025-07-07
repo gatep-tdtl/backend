@@ -517,3 +517,16 @@ class EmployerTalentMatchingScoresAPIView(APIView):
                 "talent_matches": talents_scores,
             })
         return Response(result, status=status.HTTP_200_OK)
+    
+
+from .serializers import TalentInterviewListSerializer
+
+class TalentInterviewListView(generics.ListAPIView):
+    serializer_class = TalentInterviewListSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated or not hasattr(user, 'user_role') or user.user_role != UserRole.TALENT:
+            return Interview.objects.none()
+        return Interview.objects.filter(application__talent=user).order_by('scheduled_at')

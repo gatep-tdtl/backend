@@ -291,4 +291,46 @@ class InterviewListItemSerializer(serializers.ModelSerializer):
     def get_notes(self, obj):
         return obj.feedback or ""
 
-# ...existing code...
+
+
+
+class TalentInterviewListSerializer(serializers.ModelSerializer):
+    company_name = serializers.SerializerMethodField()
+    company_profile = serializers.SerializerMethodField()
+    location = serializers.CharField(source='application.job_posting.location')
+    skills = serializers.SerializerMethodField()
+    status = serializers.CharField(source='get_interview_status_display')
+    date = serializers.SerializerMethodField()
+    time = serializers.SerializerMethodField()
+    type = serializers.CharField(source='get_interview_type_display')
+
+    class Meta:
+        model = Interview
+        fields = [
+            'id', 'company_name', 'company_profile', 'location', 'skills',
+            'status', 'date', 'time', 'type'
+        ]
+
+    def get_company_name(self, obj):
+        return obj.application.job_posting.company.company_name
+
+    def get_company_profile(self, obj):
+        # You can return a nested CompanySerializer or just the company id/url
+        company = obj.application.job_posting.company
+        return {
+            "id": company.id,
+            "company_name": company.company_name,
+            "description": company.description,
+            "logo": self.context['request'].build_absolute_uri(company.logo.url) if company.logo else None,
+            "industry": company.industry,
+            "website": company.website,
+        }
+
+    def get_skills(self, obj):
+        return obj.application.job_posting.required_skills
+
+    def get_date(self, obj):
+        return obj.scheduled_at.date()
+
+    def get_time(self, obj):
+        return obj.scheduled_at.time()
