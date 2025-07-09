@@ -398,6 +398,18 @@ class ResumeBuilderAPIView(APIView):
             else:
                 data_for_llm_prompt[p] = {} # Clear languages
 
+         # Handle frameworks_tools field
+        frameworks_tools_raw = request.data.get('frameworks_tools')
+        
+        if frameworks_tools_raw:
+            try:
+                data_for_llm_prompt['frameworks_tools'] = json.loads(frameworks_tools_raw)
+            except Exception:
+                data_for_llm_prompt['frameworks_tools'] = []
+        else:
+            data_for_llm_prompt['frameworks_tools'] = []
+        
+
         # --- 3. Extract File Fields ---
         file_fields = ['resume_pdf', 'profile_photo', 'tenth_result_upload', 
                        'twelfth_result_upload', 'diploma_result_upload', 'degree_result_upload']

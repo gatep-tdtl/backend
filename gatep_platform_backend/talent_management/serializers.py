@@ -123,6 +123,7 @@ class FullResumeSerializer(serializers.ModelSerializer):
     twelfth_result_upload_url = serializers.SerializerMethodField()
     diploma_result_upload_url = serializers.SerializerMethodField()
     degree_result_upload_url = serializers.SerializerMethodField()
+    frameworks_tools = serializers.JSONField(required=False) 
 
     def get_profile_photo_url(self, obj):
         if obj.profile_photo and hasattr(obj.profile_photo, 'url'):
@@ -182,13 +183,13 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'twelfth_board_name', 'twelfth_college_name', 'twelfth_year_passing', 'twelfth_score', 'twelfth_result_upload', 'twelfth_result_upload_url',
             'diploma_course_name', 'diploma_institution_name', 'diploma_year_passing', 'diploma_score', 'diploma_result_upload', 'diploma_result_upload_url',
             'degree_name', 'degree_institution_name', 'degree_specialization', 'degree_year_passing', 'degree_score', 'degree_result_upload', 'degree_result_upload_url',
-            'created_at', 'updated_at', 'generated_summary', 'generated_preferences'
+            'created_at', 'updated_at', 'generated_summary', 'generated_preferences', 'frameworks_tools'
         ]
         read_only_fields = [
             'id', 'talent_id', 'created_at', 'updated_at', 
             'profile_photo_url', 'resume_pdf_url', 'tenth_result_upload_url', 
             'twelfth_result_upload_url', 'diploma_result_upload_url', 'degree_result_upload_url',
-            'document_verification', 'generated_summary', 'generated_preferences'
+            'document_verification', 'generated_summary', 'generated_preferences' , 'frameworks_tools'
         ]
 
     def update(self, instance, validated_data):

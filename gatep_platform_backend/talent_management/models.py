@@ -145,6 +145,8 @@ class Resume(models.Model):
     stackoverflow_url = models.URLField(blank=True, default="")
     medium_or_blog_url = models.URLField(blank=True, default="")
 
+    frameworks_tools = models.JSONField(blank=True, default=list, verbose_name="Frameworks & Tools")
+
     # Summaries & Preferences 
     summary = models.TextField(blank=True, default="")
     generated_summary = models.TextField(blank=True, default="")
