@@ -41,7 +41,7 @@ urlpatterns = [
     path('saved-jobs/save/', SaveJobView.as_view(), name='save-job'),
     path('saved-jobs/unsave/', UnsaveJobView.as_view(), name='unsave-job'),
 
-    # Job posts with AI score and summary
+    # this is for talent 
     path('job-postings/ai-score/', JobListWithMatchingScoreAPIView.as_view(), name='jobposting-ai-score'),
   
     # AI Score to Talent

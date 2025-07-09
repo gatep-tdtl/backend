@@ -19,11 +19,10 @@ class TalentProfileBasicSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'profile_summary', 'skills']
 
 
-# --- Company Serializer ---
 class CompanySerializer(serializers.ModelSerializer):
     user = SimpleUserSerializer(read_only=True)
     user_id = serializers.ReadOnlyField(source='user.id')
-    # logo = serializers.SerializerMethodField()  # override logo field
+    logo = serializers.SerializerMethodField()  # override logo field
 
     class Meta:
         model = Company
@@ -33,6 +32,12 @@ class CompanySerializer(serializers.ModelSerializer):
             'logo', 'founded_date', 'created_at', 'updated_at'
         ]
         read_only_fields = ['user', 'user_id', 'created_at', 'updated_at']
+
+    def get_logo(self, obj):
+        if obj.logo:
+            # Build the absolute URL as required
+            return f"http://tdtlworld.com/gatep-backend/media/{obj.logo}"
+        return None
 
 
 # --- Job Posting Serializer ---
