@@ -268,7 +268,7 @@ class InterviewListItemSerializer(serializers.ModelSerializer):
         return obj.application.job_posting.get_experience_level_display() if obj.application and obj.application.job_posting else ""
 
     def get_location(self, obj):
-        return obj.application.job_posting.location if obj.application and obj.application.job_posting else ""
+        return obj.location if obj.location else ""
 
     def get_interview_date(self, obj):
         return obj.scheduled_at.date().isoformat() if obj.scheduled_at else ""
@@ -297,7 +297,7 @@ class InterviewListItemSerializer(serializers.ModelSerializer):
 class TalentInterviewListSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField()
     company_profile = serializers.SerializerMethodField()
-    location = serializers.CharField(source='application.job_posting.location')
+    location = serializers.CharField()
     skills = serializers.SerializerMethodField()
     status = serializers.CharField(source='get_interview_status_display')
     date = serializers.SerializerMethodField()
@@ -334,3 +334,12 @@ class TalentInterviewListSerializer(serializers.ModelSerializer):
 
     def get_time(self, obj):
         return obj.scheduled_at.time()
+    
+
+
+class TalentJobMatchScoreSerializer(serializers.Serializer):
+    job_id = serializers.IntegerField()
+    application_id = serializers.IntegerField()
+    job_required_skills = serializers.ListField(child=serializers.CharField())
+    user_skills = serializers.ListField(child=serializers.CharField())
+    matching_percentage = serializers.FloatField()

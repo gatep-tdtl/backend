@@ -463,60 +463,42 @@ class EmployerCompanyView(APIView):
 
 
 # ai score to talnet for the jobposting owned by the employer 
-class EmployerTalentMatchingScoresAPIView(APIView):
+from .serializers import TalentJobMatchScoreSerializer
+
+class EmployerTalentJobMatchScoreAPIView(APIView):
     """
-    Returns, for each job owned by the logged-in employer, the AI match score for each talent (with a resume).
+    GET: /job-postings/<job_posting_id>/applications/<application_id>/ai-score/
+    Returns the AI match score between the job's required skills and the applicant's skills.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
 
-    def get(self, request, *args, **kwargs):
-        # Ensure user is employer
-        if not hasattr(request.user, 'user_role') or request.user.user_role != UserRole.EMPLOYER:
-            return Response({"detail": "Only employer users can view this list."}, status=status.HTTP_403_FORBIDDEN)
+    def get(self, request, job_posting_id, application_id, *args, **kwargs):
+        job = get_object_or_404(JobPosting, pk=job_posting_id)
+        application = get_object_or_404(Application, pk=application_id, job_posting=job)
 
-        # Get employer's company
-        company = getattr(request.user, 'employer_company', None)
-        if not company:
-            return Response({"detail": "Employer has no associated company."}, status=status.HTTP_404_NOT_FOUND)
+        job_required_skills = job.required_skills if job.required_skills else []
 
-        # Get all active, published jobs for this company
-        jobs = JobPosting.objects.filter(company=company, is_active=True, status='PUBLISHED').order_by('-posted_date')
+        # Get user skills from latest resume
+        from talent_management.models import Resume
+        resume_obj = Resume.objects.filter(talent_id=application.talent, is_deleted=False).order_by('-updated_at').first()
+        user_skills = []
+        if resume_obj and resume_obj.skills:
+            try:
+                user_skills = json.loads(resume_obj.skills)
+            except Exception:
+                user_skills = []
 
-        # Get all talents with at least one resume (not deleted)
-        resumes = Resume.objects.filter(is_deleted=False).select_related('talent_id')
-        # Map: talent_id -> latest resume
-        latest_resumes = {}
-        for resume in resumes.order_by('talent_id', '-updated_at'):
-            latest_resumes.setdefault(resume.talent_id_id, resume)
+        score = get_ai_match_score(user_skills, job_required_skills)
 
-        # Get all talents (users) who have a resume
-        talents = CustomUser.objects.filter(id__in=latest_resumes.keys(), user_role=UserRole.TALENT)
-
-        # Build result
-        result = []
-        for job in jobs:
-            job_required_skills = job.required_skills if job.required_skills else []
-            talents_scores = []
-            for talent in talents:
-                resume = latest_resumes.get(talent.id)
-                try:
-                    user_skills = json.loads(resume.skills) if resume and resume.skills else []
-                except Exception:
-                    user_skills = []
-                score = get_ai_match_score(user_skills, job_required_skills)
-                talents_scores.append({
-                    "talent_id": talent.id,
-                    "talent_name": f"{talent.first_name} {talent.last_name}".strip() or talent.username,
-                    "matching_percentage": score,
-                    "resume_id": resume.id if resume else None,
-                })
-            result.append({
-                "job_id": job.id,
-                "job_title": job.title,
-                "required_skills": job_required_skills,
-                "talent_matches": talents_scores,
-            })
-        return Response(result, status=status.HTTP_200_OK)
+        data = {
+            "job_id": job.id,
+            "application_id": application.id,
+            "job_required_skills": job_required_skills,
+            "user_skills": user_skills,
+            "matching_percentage": score,
+        }
+        serializer = TalentJobMatchScoreSerializer(data)
+        return Response(serializer.data, status=200)
     
 
 from .serializers import TalentInterviewListSerializer
