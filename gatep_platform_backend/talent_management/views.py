@@ -79,6 +79,16 @@ JSON Schema for Resume Data:
         "email": "Email address",
         "phone": "Phone number",
         "current_location": "Current city or location",
+        "current_area": "Current area",
+        "permanent_area": "Permanent area",
+        "current_city": "Current city",
+        "permanent_city": "Permanent city",
+        "current_district": "Current district",
+        "permanent_district": "Permanent district",
+        "current_state": "Current state",
+        "permanent_state": "Permanent state",
+        "current_country": "Current country",
+        "permanent_country": "Permanent country",
         "aadhar_number": "Aadhar number (if provided in text)",
         "passport_number": "Passport number (if provided in text)",
         "current_company": "Current employer (if any)"
@@ -139,6 +149,30 @@ JSON Schema for Resume Data:
             "score": "Percentage or CGPA for 10th grade"
         }}
     }},
+    "frameworks_tools": [
+     {"name": "Tool/Framework Name", "rating": 5}
+    ],
+    "diploma_details": [
+        {"course_name": "...", "institution_name": "...", ...}
+    ],
+    "degree_details": [
+        {"degree_name": "...", "institution_name": "...", ...}
+    ],
+    "certification_details": [
+        {"name": "...", "issuer": "...", ...}
+    ],
+    "certification_photos": [
+        "url1", "url2"
+    ],
+    "work_preferences": [
+        "Remote", "Flexible Hours"
+    ],
+    "work_authorizations": [
+        "Indian Citizen", "US B1/B2 Visa"
+    ],
+    "professional_links": [
+        "https://linkedin.com/in/yourprofile", ...
+    ],
     "certifications": ["Certification Name 1 (e.g., AWS Certified Machine Learning - Specialty)", "Certification Name 2"],
     "awards": ["Award Title 1", "Award Title 2"],
     "publications": ["Publication Title 1 (e.g., 'Leveraging X for Y' - Journal/Conference, Year)", "Publication Title 2"],
@@ -274,9 +308,23 @@ Extracted Score:"""
         # It structures the form data to resemble the LLM's expected output structure.
         structured_resume = {}
         structured_resume[B] = { # personal_info
-            L: data_for_llm_prompt.get(L, ''), M: data_for_llm_prompt.get(M, ''), N: data_for_llm_prompt.get(N, ''),
-            S: data_for_llm_prompt.get(S, ''), T: data_for_llm_prompt.get(T, ''),
-            U: data_for_llm_prompt.get(U, ''), V: data_for_llm_prompt.get(V, '')
+            L: data_for_llm_prompt.get(L, ''),
+            M: data_for_llm_prompt.get(M, ''),
+            N: data_for_llm_prompt.get(N, ''),
+            S: data_for_llm_prompt.get(S, ''),
+            T: data_for_llm_prompt.get(T, ''),
+            U: data_for_llm_prompt.get(U, ''),
+            V: data_for_llm_prompt.get(V, ''),
+            "current_area": data_for_llm_prompt.get("current_area", ""),
+            "permanent_area": data_for_llm_prompt.get("permanent_area", ""),
+            "current_city": data_for_llm_prompt.get("current_city", ""),
+            "permanent_city": data_for_llm_prompt.get("permanent_city", ""),
+            "current_district": data_for_llm_prompt.get("current_district", ""),
+            "permanent_district": data_for_llm_prompt.get("permanent_district", ""),
+            "current_state": data_for_llm_prompt.get("current_state", ""),
+            "permanent_state": data_for_llm_prompt.get("permanent_state", ""),
+            "current_country": data_for_llm_prompt.get("current_country", ""),
+            "permanent_country": data_for_llm_prompt.get("permanent_country", "")
         }
         structured_resume[I] = { # links
             W: data_for_llm_prompt.get(W, ''), X: data_for_llm_prompt.get(X, ''), Y: data_for_llm_prompt.get(Y, ''),
@@ -417,10 +465,16 @@ class ResumeBuilderAPIView(APIView):
         ]
         for field in json_fields:
             raw_val = request.data.get(field)
-            if raw_val:
-                try:
-                    data_for_llm_prompt[field] = json.loads(raw_val)
-                except Exception:
+            if raw_val is not None:
+                # If already a list/dict, use as is. If string, try to parse.
+                if isinstance(raw_val, (list, dict)):
+                    data_for_llm_prompt[field] = raw_val
+                elif isinstance(raw_val, str) and raw_val.strip():
+                    try:
+                        data_for_llm_prompt[field] = json.loads(raw_val)
+                    except Exception:
+                        data_for_llm_prompt[field] = []
+                else: 
                     data_for_llm_prompt[field] = []
             else:
                 data_for_llm_prompt[field] = []
@@ -495,16 +549,16 @@ class ResumeBuilderAPIView(APIView):
         resume_instance.document_verification = structured_resume.get('document_verification', resume_instance.document_verification)
 
 
-        resume_instance.current_area = structured_resume.get('current_area', resume_instance.current_area)
-        resume_instance.permanent_area = structured_resume.get('permanent_area', resume_instance.permanent_area)
-        resume_instance.current_city = structured_resume.get('current_city', resume_instance.current_city)
-        resume_instance.permanent_city = structured_resume.get('permanent_city', resume_instance.permanent_city)
-        resume_instance.current_district = structured_resume.get('current_district', resume_instance.current_district)
-        resume_instance.permanent_district = structured_resume.get('permanent_district', resume_instance.permanent_district)
-        resume_instance.current_state = structured_resume.get('current_state', resume_instance.current_state)
-        resume_instance.permanent_state = structured_resume.get('permanent_state', resume_instance.permanent_state)
-        resume_instance.current_country = structured_resume.get('current_country', resume_instance.current_country)
-        resume_instance.permanent_country = structured_resume.get('permanent_country', resume_instance.permanent_country)
+        resume_instance.current_area = structured_resume.get(B, {}).get("current_area", resume_instance.current_area)
+        resume_instance.permanent_area = structured_resume.get(B, {}).get("permanent_area", resume_instance.permanent_area)
+        resume_instance.current_city = structured_resume.get(B, {}).get("current_city", resume_instance.current_city)
+        resume_instance.permanent_city = structured_resume.get(B, {}).get("permanent_city", resume_instance.permanent_city)
+        resume_instance.current_district = structured_resume.get(B, {}).get("current_district", resume_instance.current_district)
+        resume_instance.permanent_district = structured_resume.get(B, {}).get("permanent_district", resume_instance.permanent_district)
+        resume_instance.current_state = structured_resume.get(B, {}).get("current_state", resume_instance.current_state)
+        resume_instance.permanent_state = structured_resume.get(B, {}).get("permanent_state", resume_instance.permanent_state)
+        resume_instance.current_country = structured_resume.get(B, {}).get("current_country", resume_instance.current_country)
+        resume_instance.permanent_country = structured_resume.get(B, {}).get("permanent_country", resume_instance.permanent_country)
 
         # JSON fields
         resume_instance.diploma_details = structured_resume.get('diploma_details', resume_instance.diploma_details)
