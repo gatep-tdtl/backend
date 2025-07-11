@@ -408,6 +408,32 @@ class ResumeBuilderAPIView(APIView):
                 data_for_llm_prompt['frameworks_tools'] = []
         else:
             data_for_llm_prompt['frameworks_tools'] = []
+
+
+        # Handle current_area and permanent_area fields
+        json_fields = [
+            'diploma_details', 'degree_details', 'certification_details', 'certification_photos',
+            'work_preferences', 'work_authorizations', 'professional_links'
+        ]
+        for field in json_fields:
+            raw_val = request.data.get(field)
+            if raw_val:
+                try:
+                    data_for_llm_prompt[field] = json.loads(raw_val)
+                except Exception:
+                    data_for_llm_prompt[field] = []
+            else:
+                data_for_llm_prompt[field] = []
+
+        # For location fields (plain text)
+        location_fields = [
+            'current_area', 'permanent_area', 'current_city', 'permanent_city',
+            'current_district', 'permanent_district', 'current_state', 'permanent_state',
+            'current_country', 'permanent_country'
+        ]
+        for field in location_fields:
+            if field in request.data:
+                data_for_llm_prompt[field] = request.data.get(field)
         
 
         # --- 3. Extract File Fields ---
@@ -467,6 +493,28 @@ class ResumeBuilderAPIView(APIView):
         resume_instance.work_authorization = structured_resume.get(v, {}).get(b, resume_instance.work_authorization)
         resume_instance.criminal_record_disclosure = structured_resume.get(v, {}).get(c, resume_instance.criminal_record_disclosure)
         resume_instance.document_verification = structured_resume.get('document_verification', resume_instance.document_verification)
+
+
+        resume_instance.current_area = structured_resume.get('current_area', resume_instance.current_area)
+        resume_instance.permanent_area = structured_resume.get('permanent_area', resume_instance.permanent_area)
+        resume_instance.current_city = structured_resume.get('current_city', resume_instance.current_city)
+        resume_instance.permanent_city = structured_resume.get('permanent_city', resume_instance.permanent_city)
+        resume_instance.current_district = structured_resume.get('current_district', resume_instance.current_district)
+        resume_instance.permanent_district = structured_resume.get('permanent_district', resume_instance.permanent_district)
+        resume_instance.current_state = structured_resume.get('current_state', resume_instance.current_state)
+        resume_instance.permanent_state = structured_resume.get('permanent_state', resume_instance.permanent_state)
+        resume_instance.current_country = structured_resume.get('current_country', resume_instance.current_country)
+        resume_instance.permanent_country = structured_resume.get('permanent_country', resume_instance.permanent_country)
+
+        # JSON fields
+        resume_instance.diploma_details = structured_resume.get('diploma_details', resume_instance.diploma_details)
+        resume_instance.degree_details = structured_resume.get('degree_details', resume_instance.degree_details)
+        resume_instance.certification_details = structured_resume.get('certification_details', resume_instance.certification_details)
+        resume_instance.certification_photos = structured_resume.get('certification_photos', resume_instance.certification_photos)
+        resume_instance.work_preferences = structured_resume.get('work_preferences', resume_instance.work_preferences)
+        resume_instance.work_authorizations = structured_resume.get('work_authorizations', resume_instance.work_authorizations)
+        resume_instance.professional_links = structured_resume.get('professional_links', resume_instance.professional_links)
+
 
         # List-based fields (Stored as JSON strings in TextField)
         if h in structured_resume:

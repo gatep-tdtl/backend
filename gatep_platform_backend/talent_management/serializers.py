@@ -124,6 +124,13 @@ class FullResumeSerializer(serializers.ModelSerializer):
     diploma_result_upload_url = serializers.SerializerMethodField()
     degree_result_upload_url = serializers.SerializerMethodField()
     frameworks_tools = serializers.JSONField(required=False) 
+    diploma_details = serializers.JSONField(required=False)
+    degree_details = serializers.JSONField(required=False)
+    certification_details = serializers.JSONField(required=False)
+    certification_photos = serializers.JSONField(required=False)
+    work_preferences = serializers.JSONField(required=False)
+    work_authorizations = serializers.JSONField(required=False)
+    professional_links = serializers.JSONField(required=False)
 
     def get_profile_photo_url(self, obj):
         if obj.profile_photo and hasattr(obj.profile_photo, 'url'):
@@ -183,7 +190,12 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'twelfth_board_name', 'twelfth_college_name', 'twelfth_year_passing', 'twelfth_score', 'twelfth_result_upload', 'twelfth_result_upload_url',
             'diploma_course_name', 'diploma_institution_name', 'diploma_year_passing', 'diploma_score', 'diploma_result_upload', 'diploma_result_upload_url',
             'degree_name', 'degree_institution_name', 'degree_specialization', 'degree_year_passing', 'degree_score', 'degree_result_upload', 'degree_result_upload_url',
-            'created_at', 'updated_at', 'generated_summary', 'generated_preferences', 'frameworks_tools'
+            'created_at', 'updated_at', 'generated_summary', 'generated_preferences', 'frameworks_tools', 'current_area', 'permanent_area', 'current_city', 'permanent_city',
+            'current_district', 'permanent_district', 'current_state', 'permanent_state',
+            'current_country', 'permanent_country',
+            'diploma_details', 'degree_details',
+            'certification_details', 'certification_photos',
+            'work_preferences', 'work_authorizations', 'professional_links',
         ]
         read_only_fields = [
             'id', 'talent_id', 'created_at', 'updated_at', 

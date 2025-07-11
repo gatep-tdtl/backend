@@ -230,6 +230,35 @@ class Resume(models.Model):
     # Soft Delete Field
     is_deleted = models.BooleanField(default=False)
 
+
+
+    current_area = models.CharField(max_length=255, blank=True, default="")
+    permanent_area = models.CharField(max_length=255, blank=True, default="")
+    current_city = models.CharField(max_length=100, blank=True, default="")
+    permanent_city = models.CharField(max_length=100, blank=True, default="")
+    current_district = models.CharField(max_length=100, blank=True, default="")
+    permanent_district = models.CharField(max_length=100, blank=True, default="")
+    current_state = models.CharField(max_length=100, blank=True, default="")
+    permanent_state = models.CharField(max_length=100, blank=True, default="")
+    current_country = models.CharField(max_length=100, blank=True, default="")
+    permanent_country = models.CharField(max_length=100, blank=True, default="")
+
+    # Diploma and Degree details (multiple)
+    diploma_details = models.JSONField(blank=True, default=list, verbose_name="Diploma Details")
+    degree_details = models.JSONField(blank=True, default=list, verbose_name="Degree Details")
+
+    # Certification details (multiple, with photos)
+    certification_details = models.JSONField(blank=True, default=list, verbose_name="Certification Details")
+    certification_photos = models.JSONField(blank=True, default=list, verbose_name="Certification Photos")
+
+    # Work preference (multiple)
+    work_preferences = models.JSONField(blank=True, default=list, verbose_name="Work Preferences")
+
+    # Work authorization (multiple)
+    work_authorizations = models.JSONField(blank=True, default=list, verbose_name="Work Authorizations")
+
+    # Professional links (multiple)
+    professional_links = models.JSONField(blank=True, default=list, verbose_name="Professional Links")
     def __str__(self):
         return f"{self.name} ({self.email})"
 
