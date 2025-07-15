@@ -930,3 +930,155 @@ class ResumeBuilderAPIView(APIView):
             return JsonResponse({'message': 'Resume not found or already deleted for this user.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({J: f"An error occurred during soft delete: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+        
+        
+        
+#####################vaishnavi############
+
+# ... (your existing imports)
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from django.conf import settings
+from .models import Resume # Make sure your Resume model is imported
+
+# --- Import our new AI services ---
+# from . import ai_analysis_services
+from .ai_analysis_services import (
+    generate_resume_review,
+    extract_text_from_pdf_path,
+    generate_skill_gap_analysis,
+    generate_career_roadmap
+)
+
+# ... (your existing ResumeAIPipeline and ResumeBuilderAPIView classes) ...
+
+# --------------------------------------------------------------------------
+# --- NEW VIEWS FOR AI ANALYSIS MODULES ---
+# --------------------------------------------------------------------------
+
+class ResumeReviewAPIView(APIView):
+    """
+    Provides an AI-powered review of the user's uploaded resume PDF.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        target_role = request.query_params.get('target_role', 'AI Engineer') # Get role from query params
+
+        try:
+            resume_instance = Resume.objects.get(talent_id=user, is_deleted=False)
+            if not resume_instance.resume_pdf:
+                return JsonResponse(
+                    {'error': 'No resume PDF found. Please upload a resume first.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Get the full path to the PDF file
+            pdf_path = os.path.join(settings.MEDIA_ROOT, resume_instance.resume_pdf.name)
+            if not os.path.exists(pdf_path):
+                 return JsonResponse(
+                    {'error': 'Resume file is missing from storage. Please re-upload.'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            # Extract text from the PDF
+            resume_text = extract_text_from_pdf_path(pdf_path)
+            if not resume_text:
+                return JsonResponse(
+                    {'error': 'Could not extract text from the resume PDF.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Call the AI service
+            review_result = generate_resume_review(resume_text, target_role)
+            return JsonResponse(review_result, status=status.HTTP_200_OK)
+
+        except Resume.DoesNotExist:
+            return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in ResumeReviewAPIView: {e}")
+            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SkillGapAnalysisAPIView(APIView):
+    """
+    Analyzes the skill gap between the user's resume and jobs on the portal.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        try:
+            resume_instance = Resume.objects.get(talent_id=user, is_deleted=False)
+            
+            # --- Get skills from resume ---
+            # Your model stores skills as a JSON string, so we need to load it.
+            resume_skills = json.loads(resume_instance.skills) if resume_instance.skills else []
+            if not resume_skills:
+                return JsonResponse(
+                    {'error': 'No skills found in your resume profile. Please add skills first.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # --- Get job roles from your portal ---
+            # This is an example. You should replace this with a query to your JobPosting model.
+            # For now, we'll use a static list like in your script.
+            job_roles_on_portal = [
+                "AI Engineer, NLP focus, PyTorch",
+                "Senior Machine Learning Engineer (MLOps)",
+                "Data Scientist with Deep Learning experience",
+                "Research Engineer in Computer Vision",
+                "Generative AI Specialist (LLMs, Diffusion Models)",
+            ]
+
+            # Call the AI service
+            skill_gap_result = generate_skill_gap_analysis(resume_skills, job_roles_on_portal)
+            return JsonResponse(skill_gap_result, status=status.HTTP_200_OK)
+
+        except Resume.DoesNotExist:
+            return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in SkillGapAnalysisAPIView: {e}")
+            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CareerRoadmapAPIView(APIView):
+    """
+    Generates a personalized career roadmap for the user.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        try:
+            resume_instance = Resume.objects.get(talent_id=user, is_deleted=False)
+
+            # --- Extract necessary data from the resume instance ---
+            experience_list = json.loads(resume_instance.experience) if resume_instance.experience else []
+            interests = json.loads(resume_instance.interests) if resume_instance.interests else ["Not specified"]
+            skills = json.loads(resume_instance.skills) if resume_instance.skills else []
+
+            if not experience_list:
+                return JsonResponse(
+                    {'error': 'No work experience found in your profile. Please add it to generate a roadmap.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # A simple way to get current role and estimate experience
+            current_role = experience_list[0].get('title', 'Not specified') # Assumes most recent is first
+            # Note: This is a very rough estimation of experience years. A more robust calculation would be needed for accuracy.
+            experience_years = len(experience_list) * 1.5 # Placeholder logic
+
+            # Call the AI service
+            roadmap_result = generate_career_roadmap(current_role, experience_years, interests, skills)
+            return JsonResponse(roadmap_result, status=status.HTTP_200_OK)
+
+        except Resume.DoesNotExist:
+            return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            print(f"Error in CareerRoadmapAPIView: {e}")
+            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
