@@ -1,0 +1,68 @@
+{
+    "introduction_template": "Hello and welcome to your interview for the AI/ML Engineer position. We're excited to have you here today and look forward to learning more about your skills and experiences.",
+    "conclusion_template": "Thank you for participating in the interview process today. We appreciate the time and effort you've put in. We will review all the information and get back to you soon. Have a great day!",
+    "round_intro_templates": {
+        "communication": "This round will assess your communication skills, both verbal and written, as these are crucial for effective teamwork and client interactions.",
+        "technical": "In this round, we'll dive into your technical expertise in AI and Machine Learning. We'll focus on specific areas relevant to your role and our projects.",
+        "psychometric": "This round is designed to understand your psychological profile and how it fits with the team dynamics and the demands of this role.",
+        "coding": "Now, let's test your coding skills. This round will cover various stages including data structures, algorithm optimization, and model implementation."
+    },
+    "malpractice_warning_template": "Warning: Any form of malpractice during this interview will lead to immediate disqualification. Please maintain integrity throughout the process.",
+    "interview_termination_template": "This interview has been terminated due to {reason}. We regret this action but must uphold the integrity of our process.",
+    "final_report_saved_message_template": "Your interview has concluded. A detailed report has been saved to {report_filename}. You did your best, now leave the rest to us.",
+    "error_report_save_message_template": "Error: Could not save the interview report to file. Please check permissions.",
+    "time_up_message": "Time's up for this round! Moving to the next round.",
+    "no_questions_available_template": "No questions available for {round_or_stage}. Skipping.",
+    "question_intro_template": "Question {number}: {question_text}",
+    "coding_question_intro_template": "Here is your question {number} for {stage_display_name} stage.",
+    "rounds": [
+        {
+            "name": "communication",
+            "description": "This round evaluates the candidate's ability to communicate clearly and effectively.",
+            "questions": [
+                "Describe a complex machine learning problem you've solved and how you explained it to a non-technical stakeholder.",
+                "How do you handle disagreements in a technical team?"
+            ]
+        },
+        {
+            "name": "psychometric",
+            "description": "Assesses the candidate's personality traits and how they align with the team and job requirements.",
+            "questions": [
+                "Do you prefer structured or unstructured working environments? Explain why with examples.",
+                "Can you describe a situation where you had to adapt quickly to changes? What did you learn?"
+            ]
+        },
+        {
+            "name": "technical",
+            "description": "Focuses on specific technical skills in AI and Machine Learning relevant to the job.",
+            "specializations": {
+                "Machine Learning Algorithms": [
+                    "Explain how you would approach designing a recommendation system for our web applications.",
+                    "What metrics would you consider to evaluate a classification model you've developed?"
+                ],
+                "Deep Learning Architectures": [
+                    "Can you discuss the architectural differences between RNNs and CNNs and where you might apply each in web applications?",
+                    "How do you handle overfitting in deep learning models, particularly in projects with limited data?"
+                ]
+            }
+        },
+        {
+            "name": "coding",
+            "description": "Tests practical coding skills necessary for implementing AI/ML solutions.",
+            "stages": {
+                "Data Structures for ML": [
+                    "Code 1\nGiven the following list of data points, implement a function to efficiently find and return a list of the nearest neighbors: [data points].",
+                    "Code 2\nWhat is the output of this Python code snippet handling a data structure used in machine learning? Please explain."
+                ],
+                "Algorithm Optimization": [
+                    "Code with error 1\nHere is a Python function designed to optimize a machine learning algorithm. There's a logical error; can you identify and fix it?",
+                    "Code with error 2\nThis code snippet is supposed to reduce the computational complexity of an ML model training process. Find and correct any inefficiencies."
+                ],
+                "Model Implementation": [
+                    "Problem 1\nWrite a Python program to implement a simple neural network using a popular ML library of your choice.",
+                    "Problem 2\nGiven the dataset at [URL], write a script to preprocess the data and fit a logistic regression model."
+                ]
+            }
+        }
+    ]
+}
