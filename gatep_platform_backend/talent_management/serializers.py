@@ -250,6 +250,7 @@
 
 
 # talent_management/serializers.py
+# talent_management/serializers.py
 
 import json
 from rest_framework import serializers
@@ -361,7 +362,7 @@ class ResumeOtherDetailsSerializer(serializers.ModelSerializer):
 class FullResumeSerializer(serializers.ModelSerializer):
     talent_id = CustomUserLiteSerializer(read_only=True)
     
-    # URL fields for file uploads
+    # URL fields for reading file locations
     profile_photo_url = serializers.SerializerMethodField()
     resume_pdf_url = serializers.SerializerMethodField()
     tenth_result_upload_url = serializers.SerializerMethodField()
@@ -369,88 +370,90 @@ class FullResumeSerializer(serializers.ModelSerializer):
     diploma_result_upload_url = serializers.SerializerMethodField()
     degree_result_upload_url = serializers.SerializerMethodField()
 
-    # The JSONFields will now be handled correctly because they exist on the model.
-    # No custom logic is needed for them here. DRF handles it.
-    
-    def get_url_for_file_field(self, obj, field_name):
-        """Helper method to get absolute URL for a file field."""
+    def get_absolute_url_for_file(self, obj, field_name):
+        """
+        Helper method to generate a full absolute URL for a file field.
+        This requires the 'request' object in the serializer's context.
+        """
+        request = self.context.get('request')
         file_obj = getattr(obj, field_name, None)
-        if file_obj and hasattr(file_obj, 'url'):
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(file_obj.url)
+        if request and file_obj and hasattr(file_obj, 'url'):
+            return request.build_absolute_uri(file_obj.url)
         return None
 
     def get_profile_photo_url(self, obj):
-        return self.get_url_for_file_field(obj, 'profile_photo')
+        return self.get_absolute_url_for_file(obj, 'profile_photo')
 
     def get_resume_pdf_url(self, obj):
-        return self.get_url_for_file_field(obj, 'resume_pdf')
+        return self.get_absolute_url_for_file(obj, 'resume_pdf')
 
     def get_tenth_result_upload_url(self, obj):
-        return self.get_url_for_file_field(obj, 'tenth_result_upload')
+        return self.get_absolute_url_for_file(obj, 'tenth_result_upload')
 
     def get_twelfth_result_upload_url(self, obj):
-        return self.get_url_for_file_field(obj, 'twelfth_result_upload')
+        return self.get_absolute_url_for_file(obj, 'twelfth_result_upload')
 
     def get_diploma_result_upload_url(self, obj):
-        return self.get_url_for_file_field(obj, 'diploma_result_upload')
+        return self.get_absolute_url_for_file(obj, 'diploma_result_upload')
 
     def get_degree_result_upload_url(self, obj):
-        return self.get_url_for_file_field(obj, 'degree_result_upload')
+        return self.get_absolute_url_for_file(obj, 'degree_result_upload')
 
     class Meta:
         model = Resume
-        # The `fields` list includes all fields from your model.
+        # Include all model fields AND the custom URL fields
         fields = [
             'talent_id', 
-            'name', 'email', 'phone', 'profile_photo', 'profile_photo_url', 'resume_pdf', 'resume_pdf_url',
+            # Basic info + file fields and their URL counterparts
+            'name', 'email', 'phone', 
+            'profile_photo', 'profile_photo_url', 
+            'resume_pdf', 'resume_pdf_url',
+            # Links
             'linkedin_url', 'github_url', 'portfolio_url', 'stackoverflow_url', 'medium_or_blog_url',
-            'summary', 'preferences', 'work_arrangement', 'preferred_location', 'preferred_tech_stack', 
+            'professional_links',
+            # Summary, Preferences, Location
+            'summary', 'generated_summary',
+            'preferences', 'generated_preferences',
+            'work_arrangement', 'work_preferences', 'preferred_location', 'preferred_tech_stack', 
             'dev_environment', 'current_location', 'aadhar_number', 'passport_number', 'current_company',
-            'work_authorization', 'criminal_record_disclosure', 'document_verification',
+            # Authorizations
+            'work_authorization', 'work_authorizations', 'criminal_record_disclosure', 'document_verification',
+            # Other Details
             'references', 'awards', 'publications', 'open_source_contributions',
-            'volunteering_experience', 'extracurriculars', 'skills', 'experience',
-            'projects', 'certifications', 'interests', 'languages',
+            'volunteering_experience', 'extracurriculars', 
+            # Skills and Experience
+            'skills', 'experience', 'projects', 'certifications', 'certification_details', 'certification_photos', 'interests', 'languages',
+            'frameworks_tools',
+            # Education + file fields and their URL counterparts
             'tenth_board_name', 'tenth_school_name', 'tenth_year_passing', 'tenth_score', 'tenth_result_upload', 'tenth_result_upload_url',
             'twelfth_board_name', 'twelfth_college_name', 'twelfth_year_passing', 'twelfth_score', 'twelfth_result_upload', 'twelfth_result_upload_url',
-            'diploma_course_name', 'diploma_institution_name', 'diploma_year_passing', 'diploma_score', 'diploma_result_upload', 'diploma_result_upload_url',
-            'degree_name', 'degree_institution_name', 'degree_specialization', 'degree_year_passing', 'degree_score', 'degree_result_upload', 'degree_result_upload_url',
-            'created_at', 'updated_at', 'generated_summary', 'generated_preferences', 
+            'diploma_course_name', 'diploma_institution_name', 'diploma_year_passing', 'diploma_score', 'diploma_result_upload', 'diploma_result_upload_url', 'diploma_details',
+            'degree_name', 'degree_institution_name', 'degree_specialization', 'degree_year_passing', 'degree_score', 'degree_result_upload', 'degree_result_upload_url', 'degree_details',
+            # Address Details
             'current_area', 'permanent_area', 'current_city', 'permanent_city',
             'current_district', 'permanent_district', 'current_state', 'permanent_state',
             'current_country', 'permanent_country',
-            
-            # These are the new fields you added to the model
-            'frameworks_tools', 'diploma_details', 'degree_details',
-            'certification_details', 'certification_photos',
-            'work_preferences', 'work_authorizations', 'professional_links',
+            # Timestamps
+            'created_at', 'updated_at', 
         ]
         read_only_fields = [
             'talent_id', 'created_at', 'updated_at', 
             'profile_photo_url', 'resume_pdf_url', 'tenth_result_upload_url', 
             'twelfth_result_upload_url', 'diploma_result_upload_url', 'degree_result_upload_url',
-            'document_verification', 'generated_summary' 
+            'document_verification', 'generated_summary', 'generated_preferences' 
         ]
-        # We make 'profile_photo' and other file fields write-only in the full serializer
-        # The URL fields are used for reading.
+        # Make file upload fields write-only. They are used for input (uploading)
+        # but the URL fields are used for output (displaying).
         extra_kwargs = {
-            'profile_photo': {'write_only': True},
-            'resume_pdf': {'write_only': True},
-            'tenth_result_upload': {'write_only': True},
-            'twelfth_result_upload': {'write_only': True},
-            'diploma_result_upload': {'write_only': True},
-            'degree_result_upload': {'write_only': True},
+            'profile_photo': {'write_only': True, 'required': False},
+            'resume_pdf': {'write_only': True, 'required': False},
+            'tenth_result_upload': {'write_only': True, 'required': False},
+            'twelfth_result_upload': {'write_only': True, 'required': False},
+            'diploma_result_upload': {'write_only': True, 'required': False},
+            'degree_result_upload': {'write_only': True, 'required': False},
         }
 
-    # The custom `update` method is NO LONGER NEEDED for JSONFields.
-    # DRF handles the serialization and deserialization of JSONField automatically.
-    # The default ModelSerializer `update` method will work perfectly.
-    # You can safely remove it. If you still have TextFields storing JSON,
-    # you would need a modified version, but switching to JSONField is the better solution.
-
-
-# --- JobPosting Serializers (unchanged, looks correct) ---
+# --- JobPosting Serializers (Unchanged) ---
 class CompanyNameSerializer(serializers.ModelSerializer):
     class Meta:
         model = Company
