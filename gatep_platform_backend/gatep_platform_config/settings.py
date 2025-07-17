@@ -91,6 +91,20 @@ DATABASES = {
 }
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': 'gatep_platform_db',
+#         'USER': 'root',
+#         'PASSWORD': 'manager',
+#         'HOST': 'localhost',  # or your database host
+#         'PORT': '3306',# or your database port
+#         'OPTIONS': {
+#             'init_command': "SET sql_mode='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION'"
+#         },
+#     }
+# }
+
 # Password validation (standard Django validators)
 AUTH_PASSWORD_VALIDATORS = [
     {

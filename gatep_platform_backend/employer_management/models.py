@@ -22,6 +22,7 @@ class ApplicationStatus(models.TextChoices):
     REJECTED = 'REJECTED', 'Rejected'
     HIRED = 'HIRED', 'Hired'
     WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
+    DELETED = 'DELETED', 'Deleted'
 
 class InterviewType(models.TextChoices):
     INITIAL_SCREEN = 'INITIAL_SCREEN', 'Initial Screen'

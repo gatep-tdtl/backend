@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
-    CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
+    ApplicationStatusUpdateSerializer, CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
     SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
 from utils.ai_match import get_ai_match_score
@@ -175,9 +175,10 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
         if hasattr(user, 'user_role') and user.user_role == UserRole.TALENT:
             # Use CustomUser directly
             return Application.objects.filter(talent=user) \
-                               .select_related('job_posting', 'job_posting__company') \
-                               .prefetch_related('interviews') \
-                               .order_by('-application_date')
+                                        .exclude(status=ApplicationStatus.DELETED) \
+                                        .select_related('job_posting', 'job_posting__company') \
+                                        .prefetch_related('interviews') \
+                                        .order_by('-application_date')
         elif hasattr(user, 'user_role') and user.user_role == UserRole.EMPLOYER:
             company = get_object_or_404(Company, user=user)
             return Application.objects.filter(job_posting__company=company) \
@@ -345,7 +346,7 @@ class EmployerApplicationListForJobView(generics.ListAPIView):
         print (job_posting)
         self.check_object_permissions(self.request, job_posting)
 
-        queryset = Application.objects.filter(job_posting=job_posting).order_by('-application_date')
+        queryset = Application.objects.filter(job_posting=job_posting).exclude(status=ApplicationStatus.DELETED).order_by('-application_date')
 
 
         # Only keep valid related lookups
@@ -385,29 +386,22 @@ class EmployerApplicationListForJobView(generics.ListAPIView):
         }, status=status.HTTP_200_OK)
 
 
-class EmployerApplicationDetailView(generics.RetrieveAPIView):
+class EmployerApplicationDetailView(generics.RetrieveUpdateAPIView):
     """
-    API endpoint for employers to retrieve comprehensive details of a single application.
+    API endpoint for employers to retrieve and partially update application details.
     Ensures employer owns the job posting associated with the application.
     """
-    queryset = Application.objects.all() 
-    serializer_class = ApplicationDetailSerializer 
-    # Use IsApplicationOwnerOrJobOwner as it covers both scenarios for employer access.
-    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsApplicationOwnerOrJobOwner] 
-    lookup_field = 'pk' 
+    queryset = Application.objects.all()
+    serializer_class = ApplicationDetailSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsApplicationOwnerOrJobOwner]
+    lookup_field = 'pk'
 
     def get_object(self):
         obj = get_object_or_404(self.get_queryset(), pk=self.kwargs['pk'])
-        
-        # Check object-level permission on the retrieved Application object
         self.check_object_permissions(self.request, obj)
         return obj
 
     def get_serializer_context(self):
-        """
-        Ensure 'request' is passed to the serializer context for nested serializers (e.g., FullResumeSerializer)
-        to generate absolute URLs for file fields.
-        """
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
@@ -512,3 +506,43 @@ class TalentInterviewListView(generics.ListAPIView):
         if not user.is_authenticated or not hasattr(user, 'user_role') or user.user_role != UserRole.TALENT:
             return Interview.objects.none()
         return Interview.objects.filter(application__talent=user).order_by('scheduled_at')
+
+
+class ApplicationStatusUpdateView(generics.UpdateAPIView):
+    """
+    API endpoint for an employer to update the status of a specific application.
+    This action is restricted to the employer who owns the associated job posting.
+
+    Usage:
+    - METHOD: PATCH
+    - URL: /api/applications/<application_pk>/update-status/
+    - BODY: { "status": "REVIEWED" } or { "status": "REJECTED" }, etc.
+    
+    The status must be one of the valid choices defined in the ApplicationStatus model.
+    """
+    queryset = Application.objects.all()
+    serializer_class = ApplicationStatusUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsApplicationOwnerOrJobOwner]
+    http_method_names = ['patch'] # Only allow PATCH requests for partial updates
+
+    def update(self, request, *args, **kwargs):
+        """
+        Handles the PATCH request to update the application status.
+        The permissions check ensures only the correct employer can access this.
+        Returns the full, updated application details upon success.
+        """
+        # A talent user might pass the IsApplicationOwnerOrJobOwner check,
+        # but employers should be the only ones changing status here (except for withdrawals).
+        # The IsEmployerUser permission class already blocks non-employers.
+        if not request.user.is_employer_role:
+             raise PermissionDenied("You do not have permission to change the application status.")
+
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        # On success, return the full representation of the application
+        # using the more detailed serializer for a better frontend experience.
+        response_serializer = ApplicationDetailSerializer(instance, context={'request': request})
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

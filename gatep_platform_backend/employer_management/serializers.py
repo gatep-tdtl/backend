@@ -348,3 +348,14 @@ class TalentJobMatchScoreSerializer(serializers.Serializer):
     job_required_skills = serializers.ListField(child=serializers.CharField())
     user_skills = serializers.ListField(child=serializers.CharField())
     matching_percentage = serializers.FloatField()
+
+
+
+class ApplicationStatusUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer specifically for an employer to update the status of an application.
+    Validates that the provided status is a valid choice from the ApplicationStatus enum.
+    """
+    class Meta:
+        model = Application
+        fields = ['status']

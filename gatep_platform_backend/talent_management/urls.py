@@ -2,8 +2,8 @@
 from django.urls import path
 from talent_management.views import (
     ResumeBuilderAPIView, ResumeReviewAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
-from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
-                                        SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
+# from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
+#                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 
 urlpatterns = [
     # 🔹 Resume Builder
