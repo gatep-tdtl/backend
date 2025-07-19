@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     'talent_management',  # Your custom user app
     'auth_management',    # Your authentication API app
     'employer_management',
+    'admin_management',   # Your admin management app
 ]
 
 MIDDLEWARE = [

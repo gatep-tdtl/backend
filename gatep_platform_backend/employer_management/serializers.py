@@ -359,3 +359,141 @@ class ApplicationStatusUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = ['status']
+
+
+
+
+
+#################### nikita's code ####################
+
+
+# Corrected Serializers Below This Line
+
+# class HiringAnalyticsSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = HiringAnalytics
+#         fields = [
+#             'id',
+#             'company',
+#             'metric_name',
+#             'metric_value',
+#             'recorded_date',
+#             'created_at',
+#             'updated_at'
+#         ]
+#         read_only_fields = ['id', 'created_at', 'updated_at', 'recorded_date']
+
+# class JobPerformanceSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model = JobPerformance
+#         fields = [
+#             'id',
+#             'application',
+#             'employee',
+#             'job_posting',
+#             'performance_score',
+#             'feedback',
+#             'evaluation_date',
+#             'created_at',
+#             'updated_at'
+#         ]
+#         read_only_fields = ['id', 'created_at', 'updated_at', 'evaluation_date']
+
+
+class ApplicationTrendSerializer(serializers.Serializer):
+    month = serializers.CharField()
+    application_count = serializers.IntegerField()
+
+class RecentActivitySerializer(serializers.Serializer):
+    candidate_name = serializers.CharField()
+    activity = serializers.CharField()
+    time_ago = serializers.CharField()
+
+# employermanagement/serializers.py
+
+from rest_framework import serializers
+from .models import Application, JobPosting # Import models directly from current app
+# CustomUser is already imported in employer_management/models.py via Application.talent,
+# so we can directly refer to it through the Application model's talent field.
+# We also need Resume from talent_management explicitly here for the SerializerMethodField.
+from talent_management.models import Resume # Assuming Resume is in talent_management.models
+
+class CandidateDashboardSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Hiring Analytics Dashboard to display top matching candidates.
+    Aggregates data from Application, CustomUser (via Application.talent),
+    JobPosting (via Application.job_posting), and Resume (via CustomUser).
+    """
+    candidate_name = serializers.CharField(source='talent.username', read_only=True)
+    
+    # Fetch skills from the Resume model linked to the CustomUser (talent)
+    skills = serializers.SerializerMethodField()
+    
+    # Fetch experience from the Resume model linked to the CustomUser (talent)
+    experience = serializers.SerializerMethodField()
+    
+    # Fetch location from the related JobPosting
+    location = serializers.CharField(source='job_posting.location', read_only=True)
+    
+    # Match score is from the 'score' field in the Application model
+    match_score = serializers.DecimalField(source='score', max_digits=5, decimal_places=2, read_only=True)
+    
+    # Status is from the 'status' field in the Application model
+    status = serializers.CharField(read_only=True)
+
+    # For the 'View Profile' action, you might need the candidate's ID
+    candidate_id = serializers.IntegerField(source='talent.id', read_only=True)
+
+    class Meta:
+        model = Application
+        # The fields directly correspond to the columns in your screenshot
+        fields = [
+            'candidate_id',
+            'candidate_name',
+            'skills',
+            'experience',
+            'location',
+            'match_score',
+            'status',
+            
+            # 'id', # Uncomment if you need the application ID
+        ]
+
+    def get_skills(self, obj):
+        """
+        Retrieves skills from the related Resume object via CustomUser.
+        Assumes skills are stored as a comma-separated string in Resume.skills.
+        Converts it to a list for better display.
+        """
+        try:
+            # Access the CustomUser instance via the 'talent' ForeignKey on Application
+            # Then, traverse to the related Resume objects.
+            # Assuming a CustomUser can have multiple resumes, we take the first one.
+            # Adjust this logic if you have a specific rule for which resume to use.
+            if hasattr(obj.talent, 'resumes') and obj.talent.resumes.exists():
+                resume = obj.talent.resumes.first()
+                if resume and resume.skills:
+                    # Assuming skills are comma-separated in the TextField
+                    # e.g., "NLP, Python, Machine Learning"
+                    skills_list = [s.strip() for s in resume.skills.split(',') if s.strip()]
+                    return skills_list
+        except Resume.DoesNotExist:
+            pass # No resume found for this talent
+        return []
+
+    def get_experience(self, obj):
+        """
+        Retrieves experience from the related Resume object via CustomUser.
+        Assumes experience is stored as a string (e.g., "5 years") in Resume.experience.
+        """
+        try:
+            if hasattr(obj.talent, 'resumes') and obj.talent.resumes.exists():
+                resume = obj.talent.resumes.first()
+                if resume and resume.experience:
+                    # Return the experience string as is
+                    return resume.experience
+        except Resume.DoesNotExist:
+            pass
+        return "N/A" # Or "0 years" if preferred
+    
+###################### nikita's code end ##############################

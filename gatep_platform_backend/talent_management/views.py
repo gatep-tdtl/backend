@@ -72,7 +72,7 @@ class ResumeAIPipeline:
 You are an AI Resume Builder. Your goal is to extract and structure comprehensive resume information. Combine the user's explicit form input with details from their old resume PDF. Prioritize form input for accuracy. If info is only in the PDF, extract it.
 
 Return your output in **strict JSON format only**. Do NOT include any markdown (e.g., ```json), conversational text, or explanations. The JSON structure must follow this schema:
-{{
+{{{
     "personal_info": {{"name": "...", "email": "...", "phone": "...", "current_location": "...", "current_area": "...", "permanent_area": "...", "current_city": "...", "permanent_city": "...", "current_district": "...", "permanent_district": "...", "current_state": "...", "permanent_state": "...", "current_country": "...", "permanent_country": "...", "aadhar_number": "...", "passport_number": "...", "current_company": "..."}},
     "links": {{"linkedin_url": "...", "github_url": "...", "portfolio_url": "...", "stackoverflow_url": "...", "medium_or_blog_url": "..."}},
     "professional_summary": "A concise 3-4 sentence summary.",
@@ -104,7 +104,7 @@ Return your output in **strict JSON format only**. Do NOT include any markdown (
     "legal": {{"work_authorization": "...", "criminal_record_disclosure": "..."}},
     "document_verification": "Status...",
     "interests": ["Interest 1"]
-}}
+}}}
 
 ---
 User Form Information:

@@ -2,7 +2,7 @@
 
 from django.urls import path
 from .views import (
-    RegisterView, LoginView, OTPVerificationView, resend_otp, UserUpdateView,
+    DeleteUserForTestingView, RegisterView, LoginView, OTPVerificationView, resend_otp, UserUpdateView,
     ForgotPasswordView, PasswordResetConfirmView,
     CustomUserListCreateAdminView, CustomUserRetrieveUpdateDestroyAdminView, CustomUserRoleUpdateAdminView
 )
@@ -12,6 +12,7 @@ urlpatterns = [
     # Auth URLs
     path('register/', RegisterView.as_view(), name='register'),
     path('login/', LoginView.as_view(), name='login'),
+    path('testing/delete-user/', DeleteUserForTestingView.as_view(), name='testing-delete-user'),
     path('verify-otp/', OTPVerificationView.as_view(), name='verify-otp'),
     path('resend-otp/', resend_otp, name='resend-otp'),
     path('update-profile/', UserUpdateView.as_view(), name='update-profile'),

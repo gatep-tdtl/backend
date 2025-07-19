@@ -1,4 +1,6 @@
 # employer_management/views.py
+from collections import Counter
+from datetime import timedelta, timezone
 import json
 from rest_framework.response import Response
 from rest_framework import generics, status, permissions
@@ -7,7 +9,7 @@ from django.shortcuts import get_object_or_404
 from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
-    ApplicationStatusUpdateSerializer, CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
+    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
     SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
 from utils.ai_match import get_ai_match_score
@@ -546,3 +548,151 @@ class ApplicationStatusUpdateView(generics.UpdateAPIView):
         # using the more detailed serializer for a better frontend experience.
         response_serializer = ApplicationDetailSerializer(instance, context={'request': request})
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+    
+
+
+
+
+################nikita's code below ###################
+from rest_framework.decorators import action
+from rest_framework import viewsets
+
+
+class CombinedDashboardView(APIView):
+    """
+    Derives dashboard metrics on-the-fly from core models.
+    Requires employer authentication.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser] # <--- ADDED THIS LINE
+
+    def get(self, request):
+        # Filter params
+        time_range = request.query_params.get('time_range', 'Last 6 Months')
+        job_filter = request.query_params.get('job_filter', 'All Jobs')
+
+        # Time filter logic
+        end_date = timezone.now()
+        date_threshold = {
+            'Last Month': end_date - timedelta(days=30),
+            'Last 3 Months': end_date - timedelta(days=90),
+            'Last 6 Months': end_date - timedelta(days=180),
+            'Last Year': end_date - timedelta(days=365)
+        }.get(time_range, end_date - timedelta(days=180)) # Default to Last 6 Months
+
+        # Base query
+        applications_qs = Application.objects.filter(application_date__gte=date_threshold)
+        interviews_qs = Interview.objects.filter(scheduled_at__gte=date_threshold)
+
+        # Filter by job role if provided
+        if job_filter != 'All Jobs':
+            applications_qs = applications_qs.filter(job_posting__title__icontains=job_filter)
+            interviews_qs = interviews_qs.filter(application__job_posting__title__icontains=job_filter)
+
+        # --- Summary Stats ---
+        total_applications = applications_qs.count()
+        total_interviews = interviews_qs.count()
+        total_hires = applications_qs.filter(status=ApplicationStatus.HIRED).count()
+        acceptance_rate = (total_hires / total_applications * 100) if total_applications > 0 else 0
+
+        # --- Application Trend per Month ---
+        trend_counter = Counter(applications_qs.datetimes('application_date', 'month'))
+        application_trend = [
+            {"month": dt.strftime("%b %Y"), "application_count": count}
+            for dt, count in sorted(trend_counter.items())
+        ]
+
+        # --- Recent Activity (last 5 applications) ---
+        recent_activities = applications_qs.order_by('-application_date')[:5]
+        recent_activity_list = [
+            {
+                "candidate_name": f"{app.talent.first_name or ''} {app.talent.last_name or ''}".strip() or app.talent.username,
+                "activity": f"Applied for {app.job_posting.title}",
+                "time_ago": app.application_date.strftime("%b %d, %Y")
+            }
+            for app in recent_activities
+        ]
+
+        # --- Job Performance (average score per job title) ---
+        job_perf_raw = applications_qs.values('job_posting__title') \
+                                     .annotate(avg_score=Avg('score')) \
+                                     .order_by('-avg_score')
+        job_performance_data = [
+            {"job_role": j['job_posting__title'], "performance_value": round(j['avg_score'] or 0, 2)}
+            for j in job_perf_raw
+        ]
+
+        return Response({
+            "summary_stats": {
+                "total_applications": total_applications,
+                "total_interviews": total_interviews,
+                "total_hires": total_hires,
+                "acceptance_rate": f"{acceptance_rate:.2f}%"
+            },
+            "application_trend": application_trend,
+            "recent_activity": recent_activity_list,
+            "job_performance": job_performance_data
+        }, status=status.HTTP_200_OK)
+
+
+class HiringAnalyticsDashboardViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API ViewSet for the Hiring Analytics Dashboard.
+    Provides top matching candidates with filtering capabilities.
+    Requires employer authentication.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser] # <--- ADDED THIS LINE
+
+    queryset = Application.objects.select_related(
+        'job_posting',
+        'talent',
+    ).prefetch_related(
+        'talent__resumes'
+    ).all()
+    serializer_class = CandidateDashboardSerializer # Ensured this is imported at the top
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        job_filter = self.request.query_params.get('job_filter', '').strip()
+        valid_job_filters = {
+            'All Jobs', 'AI Engineer', 'ML Specialist', 'Data Scientist', 'NLP Engineer'
+        }
+
+        if job_filter and job_filter != 'All Jobs' and job_filter in valid_job_filters:
+            queryset = queryset.filter(job_posting__title__iexact=job_filter)
+        
+        time_range = self.request.query_params.get('time_range', 'Last 6 Months').strip()
+        
+        end_date = timezone.now()
+        start_date = None
+
+        if time_range == 'Last 6 Months':
+            start_date = end_date - timedelta(days=6 * 30)
+        elif time_range == 'Last 3 Months':
+            start_date = end_date - timedelta(days=3 * 30)
+        elif time_range == 'Last Month':
+            start_date = end_date - timedelta(days=30)
+        elif time_range == 'Last Year':
+            start_date = end_date - timedelta(days=365)
+
+        if start_date:
+            queryset = queryset.filter(application_date__gte=start_date, application_date__lte=end_date)
+
+        queryset = queryset.order_by('-score', '-application_date')
+
+        return queryset
+
+    @action(detail=False, methods=['get'], url_path='top-matching-candidates')
+    def top_matching_candidates(self, request):
+        """
+        Custom action to retrieve top matching candidates with applied filters.
+        Accessible at /api/hiring-analytics/top-matching-candidates/
+        Query parameters:
+        - job_filter: e.g., 'AI Engineer', 'ML Specialist', 'Data Scientist', 'NLP Engineer'
+        - time_range: 'Last 6 Months', 'Last 3 Months', 'Last Month', 'Last Year'
+        """
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+###################### nikita's code end ##############################

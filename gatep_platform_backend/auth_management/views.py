@@ -215,4 +215,52 @@ class PasswordResetConfirmView(APIView):
 
 
 
+from rest_framework.views import APIView
+
+class DeleteUserForTestingView(APIView):
+    """
+    An insecure endpoint to permanently delete a user by username or email.
+    This should NEVER be exposed in a production environment. It is intended
+    for cleaning up test data during development.
+    """
+    # By default, APIView has no permission_classes, so it's open.
+    
+    def delete(self, request, *args, **kwargs):
+        username = request.data.get('username')
+        email = request.data.get('email')
+
+        if not username and not email:
+            return Response(
+                {"error": "You must provide either a 'username' or an 'email'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user_to_delete = None
+        identifier = ""
+
+        try:
+            if username:
+                # .get() will raise an exception if not found, which is what we want
+                user_to_delete = CustomUser.objects.get(username=username)
+                identifier = f"username '{username}'"
+            elif email:
+                user_to_delete = CustomUser.objects.get(email=email)
+                identifier = f"email '{email}'"
+
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"error": "User not found with the provided identifier."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Using the Django ORM's .delete() method handles all foreign key cascades automatically.
+        # This is what solves your problem.
+        user_to_delete.delete()
+
+        return Response(
+            {"message": f"User with {identifier} has been permanently deleted."},
+            status=status.HTTP_200_OK
+        )
+
+
 
