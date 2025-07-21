@@ -526,7 +526,8 @@ class ApplicationStatusUpdateView(generics.UpdateAPIView):
     """
     queryset = Application.objects.all()
     serializer_class = ApplicationStatusUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsApplicationOwnerOrJobOwner]
+    # permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsApplicationOwnerOrJobOwner]
+    permission_classes = [permissions.IsAuthenticated]
     http_method_names = ['patch'] # Only allow PATCH requests for partial updates
 
     def update(self, request, *args, **kwargs):

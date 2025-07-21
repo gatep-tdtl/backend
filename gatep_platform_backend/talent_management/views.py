@@ -48,9 +48,26 @@ C = 'degree'; A = 'education_details'; B = 'personal_info'
 
 
 class ResumeAIPipeline:
-    # ... other methods ...
+    def __init__(self):
+        """Initializes the AI pipeline with the Inference Client and other attributes."""
+        self.client = InferenceClient(token=HFF_TOKEN)
+        self.temp_pdf_paths = []
 
-    # THIS IS THE CORRECTED FUNCTION
+    # --- THIS IS THE MISSING METHOD THAT CAUSED THE ERROR ---
+    def _extract_text_from_pdf(self, pdf_path):
+        """
+        Extracts all text from a PDF file using the fitz (PyMuPDF) library.
+        """
+        try:
+            doc = fitz.open(pdf_path)
+            full_text = "".join(page.get_text() for page in doc)
+            doc.close()
+            # Clean up excessive newlines for better LLM processing
+            return re.sub(r'\s*\n\s*', '\n', full_text).strip()
+        except Exception as e:
+            print(f"Error extracting text from PDF at {pdf_path}: {e}")
+            return "" # Return empty string on failure
+
     def _build_prompt(self, form_data, pdf_text):
         form_info_str = json.dumps(form_data, indent=2)
         # The prompt is intentionally verbose and detailed to guide the LLM effectively.
@@ -120,7 +137,6 @@ Strict JSON Output:
         return response.choices[0].message.content
 
     def process_resume_data(self, data_for_llm_prompt, resume_pdf_file, education_files):
-        self.temp_pdf_paths = []
         structured_resume = {}
         temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_uploads')
         os.makedirs(temp_dir, exist_ok=True)
@@ -131,7 +147,7 @@ Strict JSON Output:
                 for chunk in resume_pdf_file.chunks(): temp_file.write(chunk)
             self.temp_pdf_paths.append(pdf_path)
 
-            pdf_text = self._extract_text_from_pdf(pdf_path)
+            pdf_text = self._extract_text_from_pdf(pdf_path) # <<< THIS CALL NOW WORKS
             prompt = self._build_prompt(data_for_llm_prompt, pdf_text)
             llm_response = self._call_llama_model(prompt)
             structured_resume = json.loads(llm_response)
@@ -346,6 +362,13 @@ class ResumeReviewAPIView(APIView):
 
 class SkillGapAnalysisAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def _safe_json_loads(self, json_string, default_value=None):
+        """Helper method to safely load JSON strings."""
+        if not json_string: return default_value
+        try: return json.loads(json_string)
+        except (json.JSONDecodeError, TypeError): return default_value
+
     def get(self, request, *args, **kwargs):
         user = request.user
         try:
@@ -365,10 +388,18 @@ class SkillGapAnalysisAPIView(APIView):
         except Resume.DoesNotExist:
             return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=s.HTTP_500_INTERNAL_SERVER_ERROR)
+            # CORRECTED TYPO HERE: 's' changed to 'status'
+            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CareerRoadmapAPIView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def _safe_json_loads(self, json_string, default_value=None):
+        """Helper method to safely load JSON strings."""
+        if not json_string: return default_value
+        try: return json.loads(json_string)
+        except (json.JSONDecodeError, TypeError): return default_value
+
     def get(self, request, *args, **kwargs):
         user = request.user
         try:
@@ -391,11 +422,11 @@ class CareerRoadmapAPIView(APIView):
             return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-###############viashnavi's code ##############
+###############vaishnavi's code ##############
 
-from rest_framework import generics # <-- ADD THIS IMPORT
-from .models import TrendingSkill # <-- ADD THIS IMPORT
-from .serializers import TrendingSkillSerializer # <-- ADD THIS IMPORT
+from rest_framework import generics
+from .models import TrendingSkill
+from .serializers import TrendingSkillSerializer
 
 #add in the last
 class TrendingSkillsListView(generics.ListAPIView):
