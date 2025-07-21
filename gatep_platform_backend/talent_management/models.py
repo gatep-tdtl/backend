@@ -385,3 +385,26 @@ class JobListing(models.Model):
 
     def __str__(self):
         return f"{self.title} at {self.company_name} ({self.status})"
+    
+
+
+
+###################### viashnavi's code ###############
+
+
+#add to the bottom
+class TrendingSkill(models.Model):
+    skill = models.CharField(max_length=100, unique=True, verbose_name=_('Skill Name'))
+    demand = models.CharField(max_length=20, blank=True, verbose_name=_('Demand Percentage'))
+    increase = models.CharField(max_length=20, blank=True, verbose_name=_('Increase Over Last Year'))
+    priority = models.CharField(max_length=50, blank=True, verbose_name=_('Priority Level'))
+    updated_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Trending Skill')
+        verbose_name_plural = _('Trending Skills')
+        ordering = ['id']
+
+    def __str__(self):
+        return self.skill

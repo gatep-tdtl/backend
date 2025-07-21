@@ -46,49 +46,34 @@ C = 'degree'; A = 'education_details'; B = 'personal_info'
 
 
 class ResumeAIPipeline:
-    """
-    Handles all AI model interactions, PDF text extraction, and data structuring
-    based on LLM output.
-    """
-    def __init__(self):
-        self.client = InferenceClient(_A, token=HFF_TOKEN)
-        self.temp_pdf_paths = []
+    # ... other methods ...
 
-    def _extract_text_from_pdf(self, path):
-        text = ''
-        try:
-            doc = fitz.open(path)
-            for page in doc:
-                text += page.get_text()
-            doc.close()
-        except Exception as e:
-            raise Exception(f"Error extracting text from PDF: {e}. Ensure it's a valid PDF.")
-        return text
-
+    # THIS IS THE CORRECTED FUNCTION
     def _build_prompt(self, form_data, pdf_text):
         form_info_str = json.dumps(form_data, indent=2)
         # The prompt is intentionally verbose and detailed to guide the LLM effectively.
+        # NOTE THE FIX: Every literal { and } is now doubled as {{ and }}
         return f'''
 You are an AI Resume Builder. Your goal is to extract and structure comprehensive resume information. Combine the user's explicit form input with details from their old resume PDF. Prioritize form input for accuracy. If info is only in the PDF, extract it.
 
 Return your output in **strict JSON format only**. Do NOT include any markdown (e.g., ```json), conversational text, or explanations. The JSON structure must follow this schema:
-{{{
-    "personal_info": {{"name": "...", "email": "...", "phone": "...", "current_location": "...", "current_area": "...", "permanent_area": "...", "current_city": "...", "permanent_city": "...", "current_district": "...", "permanent_district": "...", "current_state": "...", "permanent_state": "...", "current_country": "...", "permanent_country": "...", "aadhar_number": "...", "passport_number": "...", "current_company": "..."}},
-    "links": {{"linkedin_url": "...", "github_url": "...", "portfolio_url": "...", "stackoverflow_url": "...", "medium_or_blog_url": "..."}},
+{{{{
+    "personal_info": {{{{ "name": "...", "email": "...", "phone": "...", "current_location": "...", "current_area": "...", "permanent_area": "...", "current_city": "...", "permanent_city": "...", "current_district": "...", "permanent_district": "...", "current_state": "...", "permanent_state": "...", "current_country": "...", "permanent_country": "...", "aadhar_number": "...", "passport_number": "...", "current_company": "..." }}}},
+    "links": {{{{ "linkedin_url": "...", "github_url": "...", "portfolio_url": "...", "stackoverflow_url": "...", "medium_or_blog_url": "..." }}}},
     "professional_summary": "A concise 3-4 sentence summary.",
     "skills": ["Skill 1", "Skill 2"],
-    "experience": [{{"title": "...", "company": "...", "duration": "...", "responsibilities": ["..."]}}],
-    "projects": [{{"name": "...", "description": "...", "url": "..."}}],
-    "education_details": {{
-        "degree": {{"degree_name": "...", "institution_name": "...", "specialization": "...", "year_passing": "...", "score": "..."}},
-        "diploma": {{"course_name": "...", "institution_name": "...", "year_passing": "...", "score": "..."}},
-        "twelfth": {{"board_name": "...", "college_name": "...", "year_passing": "...", "score": "..."}},
-        "tenth": {{"board_name": "...", "school_name": "...", "year_passing": "...", "score": "..."}}
-    }},
-    "frameworks_tools": [{{"name": "Tool/Framework", "rating": 5}}],
-    "diploma_details": [{{"course_name": "...", "institution_name": "...", "year_passing": "...", "score": "..."}}],
-    "degree_details": [{{"degree_name": "...", "institution_name": "...", "specialization": "...", "year_passing": "...", "score": "..."}}],
-    "certification_details": [{{"name": "...", "issuer": "...", "date": "..."}}],
+    "experience": [{{{{ "title": "...", "company": "...", "duration": "...", "responsibilities": ["..."] }}}}],
+    "projects": [{{{{ "name": "...", "description": "...", "url": "..." }}}}],
+    "education_details": {{{{
+        "degree": {{{{ "degree_name": "...", "institution_name": "...", "specialization": "...", "year_passing": "...", "score": "..." }}}},
+        "diploma": {{{{ "course_name": "...", "institution_name": "...", "year_passing": "...", "score": "..." }}}},
+        "twelfth": {{{{ "board_name": "...", "college_name": "...", "year_passing": "...", "score": "..." }}}},
+        "tenth": {{{{ "board_name": "...", "school_name": "...", "year_passing": "...", "score": "..." }}}}
+    }}}},
+    "frameworks_tools": [{{{{ "name": "Tool/Framework", "rating": 5 }}}}],
+    "diploma_details": [{{{{ "course_name": "...", "institution_name": "...", "year_passing": "...", "score": "..." }}}}],
+    "degree_details": [{{{{ "degree_name": "...", "institution_name": "...", "specialization": "...", "year_passing": "...", "score": "..." }}}}],
+    "certification_details": [{{{{ "name": "...", "issuer": "...", "date": "..." }}}}],
     "certification_photos": ["url1", "url2"],
     "work_preferences": ["Remote", "Flexible Hours"],
     "work_authorizations": ["Indian Citizen", "US B1/B2 Visa"],
@@ -99,12 +84,12 @@ Return your output in **strict JSON format only**. Do NOT include any markdown (
     "open_source_contributions": ["Contribution 1"],
     "volunteering_experience": "Description...",
     "extracurriculars": "Description...",
-    "languages": {{"Language 1": "Proficiency"}},
-    "preferences": {{"work_arrangement": "...", "preferred_location": "...", "other_preferences": "..."}},
-    "legal": {{"work_authorization": "...", "criminal_record_disclosure": "..."}},
+    "languages": {{{{ "Language 1": "Proficiency" }}}},
+    "preferences": {{{{ "work_arrangement": "...", "preferred_location": "...", "other_preferences": "..." }}}},
+    "legal": {{{{ "work_authorization": "...", "criminal_record_disclosure": "..." }}}},
     "document_verification": "Status...",
     "interests": ["Interest 1"]
-}}}
+}}}}
 
 ---
 User Form Information:
@@ -402,3 +387,23 @@ class CareerRoadmapAPIView(APIView):
             return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+###############viashnavi's code ##############
+
+
+from rest_framework import generics # <-- ADD THIS IMPORT
+from .models import TrendingSkill # <-- ADD THIS IMPORT
+from .serializers import TrendingSkillSerializer # <-- ADD THIS IMPORT
+
+
+
+#add in the last
+class TrendingSkillsListView(generics.ListAPIView):
+    """
+    Provides a list of trending skills in the industry, for talent users.
+    This data is cached and updated periodically by a background task.
+    """
+    queryset = TrendingSkill.objects.all()
+    serializer_class = TrendingSkillSerializer
+    permission_classes = [IsAuthenticated]

@@ -157,6 +157,7 @@ EMAIL_HOST_PASSWORD = 'nkli finf mjfi tear' # Your email password or app-specifi
 DEFAULT_FROM_EMAIL = 'rctemp19@gmail.com' # Your default 'from' email address
 
 HFF_TOKEN = os.environ.get("HFF_TOKEN")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 
 # Django REST Framework settings to use JWT as the default authentication

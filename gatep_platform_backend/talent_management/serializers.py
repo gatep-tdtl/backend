@@ -187,3 +187,16 @@ class JobPostingSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = fields # Correctly makes all fields read-only for talent view
+
+
+########## vaishnavi's code #################33
+
+
+from .models import CustomUser, TalentProfile, Resume, TrendingSkill
+
+
+#add to the bottom
+class TrendingSkillSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TrendingSkill
+        fields = ['id', 'skill', 'demand', 'increase', 'priority', 'updated_at']
