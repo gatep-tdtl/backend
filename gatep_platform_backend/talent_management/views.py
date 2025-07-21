@@ -1,10 +1,12 @@
+# CORRECTED CODE - All top-level indentation removed
+
 _B = 'content'
 _A = 'meta-llama/Meta-Llama-3-70B-Instruct'
 import os, fitz, json, re
 from django.http import JsonResponse
 from django.conf import settings
 from huggingface_hub import InferenceClient
-from .models import Resume, CustomUser 
+from .models import Resume, CustomUser
 from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -118,7 +120,7 @@ Strict JSON Output:
         return response.choices[0].message.content
 
     def process_resume_data(self, data_for_llm_prompt, resume_pdf_file, education_files):
-        self.temp_pdf_paths = [] 
+        self.temp_pdf_paths = []
         structured_resume = {}
         temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_uploads')
         os.makedirs(temp_dir, exist_ok=True)
@@ -128,20 +130,20 @@ Strict JSON Output:
             with open(pdf_path, 'wb+') as temp_file:
                 for chunk in resume_pdf_file.chunks(): temp_file.write(chunk)
             self.temp_pdf_paths.append(pdf_path)
-            
+
             pdf_text = self._extract_text_from_pdf(pdf_path)
             prompt = self._build_prompt(data_for_llm_prompt, pdf_text)
             llm_response = self._call_llama_model(prompt)
             structured_resume = json.loads(llm_response)
         else:
             structured_resume = self._populate_structured_resume_from_form(data_for_llm_prompt)
-        
+
         # This logic to extract scores from marksheets remains a good feature
         for level, upload_file in education_files.items():
             if upload_file:
                 # ... score extraction logic ...
                 pass # The existing logic is fine here.
-        
+
         return structured_resume
 
     def get_temp_pdf_paths(self):
@@ -164,7 +166,7 @@ Strict JSON Output:
 
 class ResumeBuilderAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ai_pipeline = ResumeAIPipeline()
@@ -193,11 +195,11 @@ class ResumeBuilderAPIView(APIView):
             'work_authorization': resume_instance.work_authorization, 'criminal_record_disclosure': resume_instance.criminal_record_disclosure,
             'document_verification': resume_instance.document_verification,
             'current_area': resume_instance.current_area, 'permanent_area': resume_instance.permanent_area, 'current_city': resume_instance.current_city, 'permanent_city': resume_instance.permanent_city, 'current_district': resume_instance.current_district, 'permanent_district': resume_instance.permanent_district, 'current_state': resume_instance.current_state, 'permanent_state': resume_instance.permanent_state, 'current_country': resume_instance.current_country, 'permanent_country': resume_instance.permanent_country,
-            
+
             # --- Correctly handle JSONField vs TextField ---
             # JSONField (accessed directly)
             'languages': resume_instance.languages, 'frameworks_tools': resume_instance.frameworks_tools, 'diploma_details': resume_instance.diploma_details, 'degree_details': resume_instance.degree_details, 'certification_details': resume_instance.certification_details, 'certification_photos': resume_instance.certification_photos, 'work_preferences': resume_instance.work_preferences, 'work_authorizations': resume_instance.work_authorizations, 'professional_links': resume_instance.professional_links,
-            
+
             # TextField storing JSON (must be loaded)
             'skills': self._safe_json_loads(resume_instance.skills, []),
             'experience': self._safe_json_loads(resume_instance.experience, []),
@@ -209,7 +211,7 @@ class ResumeBuilderAPIView(APIView):
             'interests': self._safe_json_loads(resume_instance.interests, []),
             'references': self._safe_json_loads(resume_instance.references, []),
             'preferences': self._safe_json_loads(resume_instance.preferences, {}),
-            
+
             'education_details': {
                 'tenth': {'board_name': resume_instance.tenth_board_name, 'school_name': resume_instance.tenth_school_name, 'year_passing': resume_instance.tenth_year_passing, 'score': resume_instance.tenth_score, 'result_upload_url': get_url(resume_instance.tenth_result_upload)},
                 'twelfth': {'board_name': resume_instance.twelfth_board_name, 'college_name': resume_instance.twelfth_college_name, 'year_passing': resume_instance.twelfth_year_passing, 'score': resume_instance.twelfth_score, 'result_upload_url': get_url(resume_instance.twelfth_result_upload)},
@@ -255,7 +257,7 @@ class ResumeBuilderAPIView(APIView):
                     setattr(resume, field, json.dumps(value))
                 else: # For JSONFields and other standard fields, assign directly
                     setattr(resume, field, value)
-        
+
         # Handle nested structures
         if B in structured_data:
             for key, val in structured_data[B].items(): setattr(resume, key, val)
@@ -332,7 +334,7 @@ class ResumeReviewAPIView(APIView):
                 return JsonResponse({'error': 'No resume PDF found. Please upload a resume first.'}, status=status.HTTP_404_NOT_FOUND)
 
             if not os.path.exists(resume.resume_pdf.path):
-                 return JsonResponse({'error': 'Resume file is missing from storage. Please re-upload.'}, status=status.HTTP_404_NOT_FOUND)
+                return JsonResponse({'error': 'Resume file is missing from storage. Please re-upload.'}, status=status.HTTP_404_NOT_FOUND)
 
             resume_text = extract_text_from_pdf_path(resume.resume_pdf.path)
             review_result = generate_resume_review(resume_text, target_role)
@@ -351,13 +353,13 @@ class SkillGapAnalysisAPIView(APIView):
             resume_skills = self._safe_json_loads(resume.skills, [])
             if not resume_skills:
                 return JsonResponse({'error': 'No skills found in your resume. Please add skills first.'}, status=status.HTTP_400_BAD_REQUEST)
-            
+
             # TODO: Replace this with a dynamic query to your JobPosting model
             job_roles_on_portal = [
-                "AI Engineer, NLP focus, PyTorch", "Senior Machine Learning Engineer (MLOps)", 
+                "AI Engineer, NLP focus, PyTorch", "Senior Machine Learning Engineer (MLOps)",
                 "Data Scientist with Deep Learning experience", "Research Engineer in Computer Vision"
             ]
-            
+
             skill_gap_result = generate_skill_gap_analysis(resume_skills, job_roles_on_portal)
             return JsonResponse(skill_gap_result, status=status.HTTP_200_OK)
         except Resume.DoesNotExist:
@@ -387,16 +389,13 @@ class CareerRoadmapAPIView(APIView):
             return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
 
 ###############viashnavi's code ##############
-
 
 from rest_framework import generics # <-- ADD THIS IMPORT
 from .models import TrendingSkill # <-- ADD THIS IMPORT
 from .serializers import TrendingSkillSerializer # <-- ADD THIS IMPORT
-
-
 
 #add in the last
 class TrendingSkillsListView(generics.ListAPIView):
