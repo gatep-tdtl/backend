@@ -1,6 +1,8 @@
 # employer_management/views.py
 from collections import Counter
-from datetime import timedelta, timezone
+# CORRECT IMPORT
+from django.utils import timezone
+from datetime import timedelta # Keep this one, it's correct
 import json
 from rest_framework.response import Response
 from rest_framework import generics, status, permissions
