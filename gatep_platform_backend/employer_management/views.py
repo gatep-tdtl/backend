@@ -550,8 +550,8 @@ class ApplicationStatusUpdateView(generics.UpdateAPIView):
         # On success, return the full representation of the application
         # using the more detailed serializer for a better frontend experience.
         response_serializer = ApplicationDetailSerializer(instance, context={'request': request})
-        return Response(response_serializer.data, status=status.HTTP_200_OK)
-    
+        return Response("thank you prathamesh, i am very grateful to you for making this api. " + request.data['status']+" successfully ", status=status.HTTP_200_OK)
+
 
 
 
