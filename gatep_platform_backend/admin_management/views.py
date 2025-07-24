@@ -210,68 +210,43 @@ class UserDashboardAPIView(APIView):
 
  
 class GlobalDashboardOverviewAPIView(APIView):
-    """  
-    Provides overview statistics for the Global AI Talent Export Dashboard,
-    including summary cards, quick actions, recent activity, system health, and KPIs.
-    Requires authentication (temporarily for debugging).
     """
-    permission_classes = [permissions.IsAuthenticated] 
+    Provides overview statistics for the Global AI Talent Export Dashboard.
+    Static system health (no DB model used).
+    """
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        print(f"\n--- DEBUGGING GlobalDashboardOverviewAPIView GET ---")
-        print(f"DEBUG: Request user: {request.user}")
-        print(f"DEBUG: User is authenticated: {request.user.is_authenticated}")
-        print(f"DEBUG: User is staff (is_admin): {request.user.is_staff}")
-        print(f"DEBUG: User is superuser: {request.user.is_superuser}")
-        print(f"DEBUG: User ID: {getattr(request.user, 'id', 'N/A')}")
-        print(f"--- END DEBUGGING ---\n")
-        # --- END DEBUGGING PRINTS ---
-
-        # Time reference for growth calculations (e.g., "this month" vs "last month")
         today = timezone.now().date()
         this_month_start = today.replace(day=1)
         last_month_start = (this_month_start - timedelta(days=1)).replace(day=1)
         last_month_end = this_month_start - timedelta(days=1)
 
-        # --- Helper for growth calculation ---
         def calculate_growth(current_count, previous_count):
             if previous_count > 0:
                 return ((current_count - previous_count) / previous_count) * 100
-            return 0 # Or handle as 'N/A' if you prefer for 0 previous count
+            return 0
 
-        # --- Registered AI Talent ---
-        # AI keywords for identifying AI talent based on resume skills
         ai_keywords = ['AI', 'Artificial Intelligence', 'Machine Learning', 'Deep Learning', 'NLP', 'Computer Vision', 'Data Science']
-        
-        # Optimized AI talent count: Filter CustomUser first, then check related Resume skills
-        def get_ai_talent_count_optimized(start_date=None, end_date=None):
-            talent_users_qs = CustomUser.objects.filter(user_role=UserRole.TALENT)
-            
+
+        def get_ai_talent_count(start_date=None, end_date=None):
+            qs = CustomUser.objects.filter(user_role=UserRole.TALENT)
             if start_date:
-                talent_users_qs = talent_users_qs.filter(date_joined__date__gte=start_date)
+                qs = qs.filter(date_joined__date__gte=start_date)
             if end_date:
-                talent_users_qs = talent_users_qs.filter(date_joined__date__lte=end_date)
-            
-            # Filter these talent users to only include those with resumes
-            # and where their resume skills contain any of the AI keywords.
-            # Using Q objects for OR logic in skills contains check.
-            # from django.db.models import Q # Already imported at the top now
+                qs = qs.filter(date_joined__date__lte=end_date)
 
             ai_skill_conditions = Q()
             for keyword in ai_keywords:
                 ai_skill_conditions |= Q(resumes__skills__icontains=keyword)
-            
-            # Ensure we only count distinct users, as a user might have multiple resumes or multiple skill matches
-            return talent_users_qs.filter(ai_skill_conditions).distinct().count()
 
+            return qs.filter(ai_skill_conditions).distinct().count()
 
-        registered_ai_talent_this_month = get_ai_talent_count_optimized(start_date=this_month_start, end_date=today)
-        registered_ai_talent_last_month = get_ai_talent_count_optimized(start_date=last_month_start, end_date=last_month_end)
-        total_registered_ai_talent = get_ai_talent_count_optimized() # All time
+        registered_ai_talent_this_month = get_ai_talent_count(start_date=this_month_start, end_date=today)
+        registered_ai_talent_last_month = get_ai_talent_count(start_date=last_month_start, end_date=last_month_end)
+        total_registered_ai_talent = get_ai_talent_count()
         registered_ai_talent_growth = calculate_growth(registered_ai_talent_this_month, registered_ai_talent_last_month)
 
-
-        # --- Global Employers ---
         def get_employer_count(start_date=None, end_date=None):
             qs = CustomUser.objects.filter(user_role=UserRole.EMPLOYER)
             if start_date:
@@ -282,13 +257,9 @@ class GlobalDashboardOverviewAPIView(APIView):
 
         global_employers_this_month = get_employer_count(start_date=this_month_start, end_date=today)
         global_employers_last_month = get_employer_count(start_date=last_month_start, end_date=last_month_end)
-        total_global_employers = get_employer_count() # All time
+        total_global_employers = get_employer_count()
         global_employers_growth = calculate_growth(global_employers_this_month, global_employers_last_month)
 
-
-        # --- Active Placements & Total Placements ---
-        # Note: 'Active Placements' in your dashboard refers to 'this month's placements'.
-        # 'Total Placements' is 'all time hired applications'.
         def get_placements_count(status_filter=ApplicationStatus.HIRED, start_date=None, end_date=None):
             qs = Application.objects.filter(status=status_filter)
             if start_date:
@@ -299,206 +270,121 @@ class GlobalDashboardOverviewAPIView(APIView):
 
         active_placements_this_month = get_placements_count(start_date=this_month_start, end_date=today)
         active_placements_last_month = get_placements_count(start_date=last_month_start, end_date=last_month_end)
-        total_placements = get_placements_count() # All time hired applications
+        total_placements = get_placements_count()
         active_placements_growth = calculate_growth(active_placements_this_month, active_placements_last_month)
 
-        # --- Regional Performance ---
-        # Filter hired applications only
-        hired_applications_qs = Application.objects.filter(status=ApplicationStatus.HIRED)
+        hired_apps = Application.objects.filter(status=ApplicationStatus.HIRED)
 
-        regional_placements_raw = hired_applications_qs.values(
-            'job_posting__location'
-        ).annotate(
-            placements=Count('id')
-        ).order_by('-placements')
-
+        regional_performance_raw = hired_apps.values('job_posting__location').annotate(placements=Count('id')).order_by('-placements')
         regional_performance_data = []
-        for entry in regional_placements_raw:
+        for entry in regional_performance_raw:
             region = entry['job_posting__location']
-            placements = entry['placements'] # Total placements for this region
-
-            # Placements this month for the region
-            region_hired_this_month = hired_applications_qs.filter(
+            placements = entry['placements']
+            this_month_count = hired_apps.filter(
                 job_posting__location=region,
                 application_date__date__gte=this_month_start,
                 application_date__date__lte=today
             ).count()
-
-            # Placements last month for the region
-            region_hired_last_month = hired_applications_qs.filter(
+            last_month_count = hired_apps.filter(
                 job_posting__location=region,
                 application_date__date__gte=last_month_start,
                 application_date__date__lte=last_month_end
             ).count()
-
-            region_growth_percent = calculate_growth(region_hired_this_month, region_hired_last_month)
-            
+            growth = calculate_growth(this_month_count, last_month_count)
             status_text = "Stable"
-            if region_hired_this_month > region_hired_last_month:
+            if this_month_count > last_month_count:
                 status_text = "Active"
-            elif region_hired_this_month < region_hired_last_month and region_hired_last_month > 0:
+            elif this_month_count < last_month_count and last_month_count > 0:
                 status_text = "Declining"
-            # If both are 0 or equal, it remains "Stable"
 
             regional_performance_data.append({
                 "region": region,
                 "placements": placements,
-                "growth": f"{region_growth_percent:.0f}%",
+                "growth": f"{growth:.0f}%",
                 "status": status_text
             })
 
-        # --- Recent System Activity ---
-        recent_activities_list = []
-        
         def get_time_ago_string(dt):
-            # dt can be a datetime object (from date_joined, scheduled_at)
-            # or a date object (from application_date.date())
-            # For simplicity, convert all to datetime for calculation with timezone.now()
             if isinstance(dt, timezone.datetime):
-                time_diff = timezone.now() - dt
+                diff = timezone.now() - dt
             elif isinstance(dt, timezone.date):
-                # Convert date to datetime at start of day
-                time_diff = timezone.now() - timezone.make_aware(timezone.datetime.combine(dt, timezone.datetime.min.time()))
+                dt = timezone.make_aware(timezone.datetime.combine(dt, timezone.datetime.min.time()))
+                diff = timezone.now() - dt
             else:
-                return "N/A" # Should not happen with proper model fields
+                return "N/A"
 
-            if time_diff.days > 0:
-                return f"{time_diff.days} {'day' if time_diff.days == 1 else 'days'} ago"
-            elif time_diff.seconds >= 3600:
-                hours = time_diff.seconds // 3600
-                return f"{hours} {'hour' if hours == 1 else 'hours'} ago"
-            elif time_diff.seconds >= 60:
-                minutes = time_diff.seconds // 60
-                return f"{minutes} {'minute' if minutes == 1 else 'minutes'} ago"
-            else:
-                return "just now"
+            if diff.days > 0:
+                return f"{diff.days} day(s) ago"
+            elif diff.seconds >= 3600:
+                return f"{diff.seconds // 3600} hour(s) ago"
+            elif diff.seconds >= 60:
+                return f"{diff.seconds // 60} minute(s) ago"
+            return "just now"
 
-        # Recent Placements
-        # Order by application_date descending, get latest 2
-        recent_placements_qs = Application.objects.filter(
-            status=ApplicationStatus.HIRED
-        ).select_related('talent', 'job_posting').order_by('-application_date')[:2]
+        recent_activities = []
 
-        for app in recent_placements_qs:
-            recent_activities_list.append({
+        # Placements
+        recent_placements = Application.objects.filter(status=ApplicationStatus.HIRED).select_related('talent', 'job_posting').order_by('-application_date')[:2]
+        for app in recent_placements:
+            recent_activities.append({
                 "type": "Placement",
                 "description": f"{app.talent.username} placed for {app.job_posting.title} in {app.job_posting.location or 'Unknown'}",
-                "time_ago": int(app.application_date.timestamp())
+                "time_ago": get_time_ago_string(app.application_date)
             })
 
-        # Recent Registrations
-        # Order by date_joined descending, get latest 2 users (talent or employer)
-        recent_registrations_qs = CustomUser.objects.order_by('-date_joined')[:2]
-        for user in recent_registrations_qs:
-            # Ensure user.user_role is a string that can be used directly as a label
+        # Registrations
+        recent_users = CustomUser.objects.order_by('-date_joined')[:2]
+        for user in recent_users:
             role_label = user.get_user_role_display() if hasattr(user, 'get_user_role_display') else user.user_role
-            recent_activities_list.append({
+            recent_activities.append({
                 "type": "Registration",
-                "description": f"New {role_label} from {getattr(user, 'location', 'Unknown')} registered", # Assuming CustomUser might have a location field
+                "description": f"New {role_label} from {getattr(user, 'location', 'Unknown')} registered",
                 "time_ago": get_time_ago_string(user.date_joined)
             })
-        
-        # Recent Verification (Example: Count recently verified resumes)
-        # Assuming `updated_at` on Resume is modified when `document_verification` changes
-        recently_verified_count = Resume.objects.filter(
+
+        # Verifications
+        verified_count = Resume.objects.filter(
             document_verification='VERIFIED',
-            updated_at__gte=timezone.now() - timedelta(days=7) # Verified in the last 7 days
+            updated_at__gte=timezone.now() - timedelta(days=7)
         ).count()
-        recent_activities_list.append({
+        recent_activities.append({
             "type": "Verification",
-            "description": f"{recently_verified_count} talent profiles verified via DigiLocker",
-            "time_ago": "recently" # Or refine based on average verification time if available
+            "description": f"{verified_count} talent profiles verified via DigiLocker",
+            "time_ago": "recently"
         })
 
-        # Recent Interviews
-        # Filter interviews scheduled in the past week (or future interviews scheduled within a week from now)
-        recent_interviews_qs = Interview.objects.filter(
-            scheduled_at__gte=timezone.now() - timedelta(days=7) # Interviews within the last 7 days
+        # Interviews
+        recent_interviews = Interview.objects.filter(
+            scheduled_at__gte=timezone.now() - timedelta(days=7)
         ).select_related('application__talent', 'application__job_posting').order_by('-scheduled_at')[:2]
 
-        for interview in recent_interviews_qs:
-            recent_activities_list.append({
+        for interview in recent_interviews:
+            recent_activities.append({
                 "type": "Interview",
                 "description": f"Interview scheduled for {interview.application.talent.username} for {interview.application.job_posting.title}",
                 "time_ago": get_time_ago_string(interview.scheduled_at)
             })
 
-        # --- System Health (Now dynamic from SystemHealthStatus model) ---
-        system_health_data = []
-        db_health_statuses = SystemHealthStatus.objects.all().order_by('service_name') # Fetch all
-        
-        # Map DB statuses for quick lookup
-        system_health_map = {s.service_name: s.status for s in db_health_statuses}
-
-        # Define expected services and their default statuses if not found in DB
-        # Use the ServiceStatusChoices for consistency
-        expected_services_definitions = [
-            {"service": "Aadhaar Integration", "default_status": SystemHealthStatus.ServiceStatusChoices.ONLINE},
-            {"service": "DigiLocker API", "default_status": SystemHealthStatus.ServiceStatusChoices.ONLINE},
-            {"service": "NSDC Integration", "default_status": SystemHealthStatus.ServiceStatusChoices.ONLINE},
-            {"service": "MEA Services", "default_status": SystemHealthStatus.ServiceStatusChoices.MAINTENANCE},
-            {"service": "Notification Service", "default_status": SystemHealthStatus.ServiceStatusChoices.ONLINE},
+        # === System Health (NO model used) ===
+        system_health_data = [
+            {"service": "Aadhaar Integration", "status": "Online"},
+            {"service": "DigiLocker API", "status": "Online"},
+            {"service": "NSDC Integration", "status": "Online"},
+            {"service": "MEA Services", "status": "Maintenance"},
+            {"service": "Notification Service", "status": "Online"}
         ]
-        
-        for service_info in expected_services_definitions:
-            service_name = service_info["service"]
-            # Get status from DB, fallback to default if not in DB
-            current_status = system_health_map.get(service_name, service_info["default_status"])
-            system_health_data.append({
-                "service": service_name,
-                "status": current_status # This will be the TextChoices value (e.g., 'Online')
-            })
 
+        # === KPIs ===
+        total_profiles = TalentProfile.objects.count()
+        profile_completion = "75%" if total_profiles > 0 else "N/A"
+        total_interviews = Interview.objects.count()
+        successful_interviews = Interview.objects.filter(interview_status=InterviewStatus.COMPLETED).count()
+        interview_success_rate = (successful_interviews / total_interviews * 100) if total_interviews > 0 else 0
+        average_placement_time = "30 Days"
+        employer_satisfaction = "92%"
 
-        # --- Key Performance Indicators (KPIs) ---
-        # Profile Completion (Average for Talent Users)
-        # Assuming TalentProfile.profile_completion_percentage is a calculated property or a field
-        # For now, let's calculate based on a simplified "completeness" if `profile_completion_percentage` is not a field.
-        # If it's a field you add, you can use:
-        # avg_profile_completion_raw = TalentProfile.objects.aggregate(avg_completion=Avg('profile_completion_percentage'))
-
-        # To simulate profile completion for demonstration, if not a field:
-        # This is a very rough simulation. A real implementation would check mandatory fields.
-        total_talent_profiles = TalentProfile.objects.count()
-        if total_talent_profiles > 0:
-            # Placeholder/mock for actual calculation.
-            # In a real scenario, you'd iterate or use annotations if you define completeness logic.
-            # For demonstration, let's just make a plausible average or fetch from a field if added.
-            # If TalentProfile had a `profile_completion_percentage` field:
-            # avg_completion_value = TalentProfile.objects.aggregate(avg=Avg('user__talentprofile__profile_completion_percentage'))['avg']
-            # if avg_completion_value is None: # In case no profiles or no completion data
-            #      profile_completion = "N/A"
-            # else:
-            #      profile_completion = f"{avg_completion_value:.0f}%"
-            profile_completion = "75%" # Static placeholder
-        else:
-            profile_completion = "N/A"
-
-        # Interview Success Rate
-        total_interviews_count = Interview.objects.count()
-        successful_interviews_count = Interview.objects.filter(interview_status=InterviewStatus.COMPLETED).count()
-        interview_success_rate = (successful_interviews_count / total_interviews_count * 100) if total_interviews_count > 0 else 0
-
-        # Average Placement Time (e.g., from application_date to hired_date)
-        # This requires storing the 'hired_date' or last status change date on the Application model.
-        # If Application had a `hired_at` DateTimeField, you'd calculate:
-        # avg_time = Application.objects.filter(status=ApplicationStatus.HIRED, hired_at__isnull=False).annotate(
-        #     time_to_hire=F('hired_at') - F('application_date')
-        # ).aggregate(avg_delta=Avg('time_to_hire'))['avg_delta']
-        # if avg_time:
-        #     average_placement_time = f"{avg_time.days} Days"
-        # else:
-        #     average_placement_time = "N/A"
-        average_placement_time = "30 Days" # Still a placeholder based on your models
-
-        # Employer Satisfaction (Requires a survey/rating system, placeholder)
-        # If you add an EmployerFeedback model, you'd calculate:
-        # avg_satisfaction = EmployerFeedback.objects.aggregate(avg=Avg('rating'))['avg']
-        # employer_satisfaction = f"{avg_satisfaction * 20:.0f}%" if avg_satisfaction else "N/A" # assuming 1-5 rating -> %
-        employer_satisfaction = "92%" # Still a placeholder
-
-        # Prepare the final response data dictionary
-        response_data = {
+        # Final Response
+        response_data =  {
             "registered_ai_talent": {
                 "count": total_registered_ai_talent,
                 "growth_percent": f"{registered_ai_talent_growth:.0f}%"
@@ -508,32 +394,16 @@ class GlobalDashboardOverviewAPIView(APIView):
                 "growth_percent": f"{global_employers_growth:.0f}%"
             },
             "active_placements": {
-                "count": active_placements_this_month, 
+                "count": active_placements_this_month,
                 "growth_percent": f"{active_placements_growth:.0f}%"
             },
             "total_placements": total_placements,
-            "quick_actions": [
-                {"label": "VIEW ANALYTICS", "link": "/analytics/"},
-                {"label": "MANAGE USERS", "link": "/analytics/users/"},
-                {"label": "SYSTEM SETTINGS", "link": "/settings/"}
-            ],
             "regional_performance": regional_performance_data,
+            "recent_system_activity": recent_activities,
+            "SystemHealthStatus": system_health_data,
 
-            "recent_system_activity": recent_activities_list,
-            "system_health": system_health_data,
-            "key_performance_indicators": {
-                "profile_completion": profile_completion,
-                "interview_success_rate": f"{interview_success_rate:.0f}%",
-                "average_placement_time": average_placement_time,
-                "employer_satisfaction": employer_satisfaction
-            }
         }
-
-        # Use the serializer to validate and format the output
-        serializer = GlobalDashboardOverviewSerializer(data=response_data)
-        serializer.is_valid(raise_exception=True) 
-        
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(response_data, status=status.HTTP_200_OK)
     
 # class SystemHealthStatuSViewSet(viewsets.ModelViewSet):
 #     """
