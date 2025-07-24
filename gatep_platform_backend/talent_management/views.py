@@ -155,8 +155,6 @@ class ResumeBuilderAPIView(APIView):
 
     def _structure_form_data(self, data):
         structured = {}
-        # This helper remains the same, it correctly structures the data.
-        # ... (code from previous answer is correct here) ...
         # Parse fields that are sent as JSON strings
         for field in [h, i, j, k, l, m, n, o, p, q, E, 'frameworks_tools', 'diploma_details', 'degree_details', 'certification_details', 'certification_photos', 'work_preferences', 'work_authorizations', 'professional_links']:
             if field in data:
@@ -181,8 +179,15 @@ class ResumeBuilderAPIView(APIView):
             if key in data:
                 structured[I][key] = data.get(key)
 
-        # Map flat fields to nested 'education_details'
-        structured[A] = {F: {}, G: {}, H: {}, C: {}}
+        # --- START OF THE FIX ---
+        # Handle 'education_details' to support both nested JSON objects and flat form keys.
+        
+        # 1. Use the nested 'education_details' object from the payload as the base.
+        #    This is a deep copy to prevent modifying the original request data.
+        edu_from_nested = json.loads(json.dumps(data.get(A, {})))
+
+        # 2. Parse any flat educational keys (e.g., 'tenth_board_name').
+        edu_from_flat_keys = {}
         edu_map = {
             F: {'board_name': 'tenth_board_name', 'school_name': 'tenth_school_name', 'year_passing': 'tenth_year_passing', 'score': 'tenth_score'},
             G: {'board_name': 'twelfth_board_name', 'college_name': 'twelfth_college_name', 'year_passing': 'twelfth_year_passing', 'score': 'twelfth_score'},
@@ -192,7 +197,12 @@ class ResumeBuilderAPIView(APIView):
         for level, fields_map in edu_map.items():
             for dest_key, src_key in fields_map.items():
                 if src_key in data:
-                    structured[A][level][dest_key] = data.get(src_key)
+                    if level not in edu_from_flat_keys:
+                        edu_from_flat_keys[level] = {}
+                    edu_from_flat_keys[level][dest_key] = data.get(src_key)
+        
+        # 3. Merge them. The flat keys will overwrite the nested object's values if there's an overlap.
+        structured[A] = self._deep_update(edu_from_nested, edu_from_flat_keys)
         
         # Handle other top-level fields
         for key in [s, O, P, Q, R, b, c, d, f, 'document_verification']:
@@ -218,7 +228,6 @@ class ResumeBuilderAPIView(APIView):
             'created_at': resume_instance.created_at.isoformat(), 'updated_at': resume_instance.updated_at.isoformat(),
         }
 
-    # <<< FIX IS HERE: THIS METHOD IS NOW MORE ROBUST >>>
     def _update_resume_instance(self, resume, data, files):
         """Updates the resume model instance from a dictionary of data."""
         # Helper to safely get a value, converting None to "" for string-based fields
@@ -232,53 +241,65 @@ class ResumeBuilderAPIView(APIView):
             resume.name = get_safe_str(personal_info, L)
             resume.email = get_safe_str(personal_info, M)
             resume.phone = get_safe_str(personal_info, N)
-            # Apply to all string fields in personal_info
             for key in [S, T, U, V, 'current_area', 'permanent_area', 'current_city', 'permanent_city', 'current_district', 'permanent_district', 'current_state', 'permanent_state', 'current_country', 'permanent_country']:
                 if key in personal_info:
                     setattr(resume, key, get_safe_str(personal_info, key))
 
         links = data.get(I, {})
         if links:
-            # This was the source of the error. Now it's fixed.
             resume.linkedin_url = get_safe_str(links, W)
             resume.github_url = get_safe_str(links, X)
             resume.portfolio_url = get_safe_str(links, Y)
             resume.stackoverflow_url = get_safe_str(links, Z)
             resume.medium_or_blog_url = get_safe_str(links, a)
 
+        # --- START OF THE FIX ---
+        # The original prefix-based logic was flawed. This explicit mapping is robust and correct.
         education_details = data.get(A, {})
-        if education_details:
-            for edu_level, details in education_details.items():
-                if not isinstance(details, dict): continue
-                prefix_map = {'degree': 'degree_', 'diploma': 'diploma_', 'twelfth': 'twelfth_', 'tenth': 'tenth_'}
-                prefix = prefix_map.get(edu_level)
-                if not prefix: continue
+        if education_details and isinstance(education_details, dict):
+            # Define an explicit map from JSON keys to model fields
+            edu_key_map = {
+                'tenth': {
+                    'board_name': 'tenth_board_name', 'school_name': 'tenth_school_name',
+                    'year_passing': 'tenth_year_passing', 'score': 'tenth_score',
+                },
+                'twelfth': {
+                    'board_name': 'twelfth_board_name', 'college_name': 'twelfth_college_name',
+                    'year_passing': 'twelfth_year_passing', 'score': 'twelfth_score',
+                },
+                'diploma': {
+                    'course_name': 'diploma_course_name', 'institution_name': 'diploma_institution_name',
+                    'year_passing': 'diploma_year_passing', 'score': 'diploma_score',
+                },
+                'degree': {
+                    'degree_name': 'degree_name', 'institution_name': 'degree_institution_name',
+                    'specialization': 'degree_specialization', 'year_passing': 'degree_year_passing',
+                    'score': 'degree_score',
+                }
+            }
+            # Iterate through the education levels provided in the request (e.g., 'tenth', 'twelfth')
+            for edu_level, details_dict in education_details.items():
+                if edu_level in edu_key_map and isinstance(details_dict, dict):
+                    # For each detail (e.g., 'board_name'), find its model field and set the value
+                    for json_key, value in details_dict.items():
+                        model_field = edu_key_map[edu_level].get(json_key)
+                        if model_field and hasattr(resume, model_field):
+                            setattr(resume, model_field, value)
+        # --- END OF THE FIX ---
 
-                for key, val in details.items():
-                    # Determine the model field name
-                    if edu_level == 'twelfth' and key == 'institution_name': model_field_name = 'twelfth_college_name'
-                    elif edu_level == 'tenth' and key == 'institution_name': model_field_name = 'tenth_school_name'
-                    else: model_field_name = f"{prefix}{key}"
-                    
-                    if hasattr(resume, model_field_name):
-                        # For education, we allow null=True, so None is acceptable
-                        setattr(resume, model_field_name, val)
-
-        # Update remaining top-level fields
+        # Update remaining top-level fields (This part was already correct)
         for field, value in data.items():
-            if field in [B, I, A]: continue # Skip already handled nested fields
+            if field in [B, I, A]: continue 
 
             if hasattr(resume, field):
-                # For TextFields that store JSON, dump it back to a string
                 if field in ['skills', 'experience', 'projects', 'certifications', 'awards', 'publications', 'open_source_contributions', 'interests', 'references', 'preferences']:
-                    setattr(resume, field, json.dumps(value or [])) # Use empty list as default
-                # For JSONFields, assign directly but ensure a default
+                    setattr(resume, field, json.dumps(value or []))
                 elif field in ['languages', 'frameworks_tools', 'diploma_details', 'degree_details', 'certification_details', 'certification_photos', 'work_preferences', 'work_authorizations', 'professional_links']:
                     if field == 'languages':
-                        setattr(resume, field, value or {}) # Default for language is a dict
+                        setattr(resume, field, value or {})
                     else:
-                        setattr(resume, field, value or []) # Default for others is a list
-                else: # For all other CharFields/TextFields
+                        setattr(resume, field, value or [])
+                else:
                     setattr(resume, field, value if value is not None else "")
 
         # Update files

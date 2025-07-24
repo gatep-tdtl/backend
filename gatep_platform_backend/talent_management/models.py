@@ -197,32 +197,32 @@ class Resume(models.Model):
 
     # --- EDUCATION FIELDS (INDIVIDUAL FIELDS AND FILE UPLOADS) ---
     # 10th Boards
-    tenth_board_name = models.CharField(max_length=100, blank=True, null=True, verbose_name=_('10th Board Name'))
+    tenth_board_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('10th Board Name'))
     tenth_school_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('10th School Name'))
-    tenth_year_passing = models.CharField(max_length=10, blank=True, null=True, verbose_name=_('10th Year Passing'))
-    tenth_score = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('10th Score/Grade'))
+    tenth_year_passing = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('10th Year Passing'))
+    tenth_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('10th Score/Grade'))
     tenth_result_upload = models.FileField(upload_to='education_results/10th/', blank=True, null=True, verbose_name=_('10th Result Upload'))
 
     # 12th Boards
-    twelfth_board_name = models.CharField(max_length=100, blank=True, null=True, verbose_name=_('12th Board Name'))
+    twelfth_board_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('12th Board Name'))
     twelfth_college_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('12th College Name'))
-    twelfth_year_passing = models.CharField(max_length=10, blank=True, null=True, verbose_name=_('12th Year Passing'))
-    twelfth_score = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('12th Score/Grade'))
+    twelfth_year_passing = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('12th Year Passing'))
+    twelfth_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('12th Score/Grade'))
     twelfth_result_upload = models.FileField(upload_to='education_results/12th/', blank=True, null=True, verbose_name=_('12th Result Upload'))
 
     # Diploma
     diploma_course_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Course Name'))
     diploma_institution_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Institution Name'))
-    diploma_year_passing = models.CharField(max_length=10, blank=True, null=True, verbose_name=_('Diploma Year Passing'))
-    diploma_score = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('Diploma Score/Grade'))
+    diploma_year_passing = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Year Passing'))
+    diploma_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Score/Grade'))
     diploma_result_upload = models.FileField(upload_to='education_results/diploma/', blank=True, null=True, verbose_name=_('Diploma Result Upload'))
 
     # Degree (e.g., Bachelor's, Master's, Ph.D.)
     degree_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Name'))
     degree_institution_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Institution Name'))
     degree_specialization = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Specialization'))
-    degree_year_passing = models.CharField(max_length=10, blank=True, null=True, verbose_name=_('Degree Year Passing'))
-    degree_score = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('Degree Score/Grade'))
+    degree_year_passing = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Year Passing'))
+    degree_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Score/Grade'))
     degree_result_upload = models.FileField(upload_to='education_results/degree/', blank=True, null=True, verbose_name=_('Degree Result Upload'))
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -302,9 +302,9 @@ class JobListing(models.Model):
     location = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Job Location'))
 
     # Salary information
-    salary_min = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name=_('Minimum Salary'))
-    salary_max = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True, verbose_name=_('Maximum Salary'))
-    currency = models.CharField(max_length=10, blank=True, null=True, verbose_name=_('Currency'))
+    salary_min = models.DecimalField(max_digits=50, decimal_places=2, blank=True, null=True, verbose_name=_('Minimum Salary'))
+    salary_max = models.DecimalField(max_digits=50, decimal_places=2, blank=True, null=True, verbose_name=_('Maximum Salary'))
+    currency = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('Currency'))
     base_salary_unit = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('Salary Unit')) # e.g., "hour", "year"
 
     employment_type = models.CharField(

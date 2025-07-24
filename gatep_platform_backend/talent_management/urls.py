@@ -13,7 +13,7 @@ urlpatterns = [
     path('resume/skill-gap/', SkillGapAnalysisAPIView.as_view(), name='skill_gap_analysis'),
     path('resume/career-roadmap/', CareerRoadmapAPIView.as_view(), name='career_roadmap'),
 
-     path('trending-skills/', TrendingSkillsListView.as_view(), name='trending-skills-list'),
+    path('trending-skills/', TrendingSkillsListView.as_view(), name='trending-skills-list'),
 
     # 🔹 Applications (Talent-side submission)
     # path('applications/', ApplicationListCreateView.as_view(), name='application-list-create'),
