@@ -383,7 +383,7 @@ class GlobalDashboardOverviewAPIView(APIView):
             recent_activities_list.append({
                 "type": "Placement",
                 "description": f"{app.talent.username} placed for {app.job_posting.title} in {app.job_posting.location or 'Unknown'}",
-                "time_ago": get_time_ago_string(app.application_date)
+                "time_ago": int(app.application_date.timestamp())
             })
 
         # Recent Registrations
@@ -535,14 +535,14 @@ class GlobalDashboardOverviewAPIView(APIView):
         
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-class SystemHealthStatuSViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows SystemHealthStatus to be viewed or edited.
-    Provides CRUD operations for system health statuses.
-    """
-    queryset = SystemHealthStatus.objects.all().order_by('service_name')
-    serializer_class =SystemHealthStatusModelSerializer
-    permission_classes = [permissions.IsAuthenticated,IsRoleAdmin] # Use your custom admin permission
+# class SystemHealthStatuSViewSet(viewsets.ModelViewSet):
+#     """
+#     API endpoint that allows SystemHealthStatus to be viewed or edited.
+#     Provides CRUD operations for system health statuses.
+#     """
+#     queryset = SystemHealthStatus.objects.all().order_by('service_name')
+#     serializer_class =SystemHealthStatusModelSerializer
+#     permission_classes = [permissions.IsAuthenticated,IsRoleAdmin] # Use your custom admin permission
 
 
 

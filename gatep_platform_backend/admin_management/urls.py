@@ -6,7 +6,7 @@ from django.urls import path # Corrected 'rom' to 'from'
 from .views import (
     UserDashboardAPIView,
     DashboardSummaryAPIView,GlobalDashboardOverviewAPIView,
-    SystemHealthStatuSViewSet,dashboard_api  # Your ViewSet
+    dashboard_api  # Your ViewSet
 )
 
 app_name = 'admin_management' # Good practice for namespacing
@@ -26,20 +26,12 @@ urlpatterns = [
 
     # System Health Status ViewSet - Manually defined URLs for list/create and detail operations
     # For listing all system health statuses (GET) and creating a new one (POST)
-    path('system-health/', SystemHealthStatuSViewSet.as_view({
-        'get': 'list',
-        'post': 'create'
-    }), name='system-health-list'),
+   
 
 
     # For retrieving a single system health status (GET), updating (PUT),
     # partial updating (PATCH), and deleting (DELETE)
-    path('system-health/<int:pk>/', SystemHealthStatuSViewSet.as_view({ # Removed stray 'lpatterns = [' and ']'
-        'get': 'retrieve',
-        'put': 'update',
-        'patch': 'partial_update',
-        'delete': 'destroy'
-    }), name='system-health-detail'),
+    
 ]
 
 

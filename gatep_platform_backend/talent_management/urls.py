@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-    ResumeBuilderAPIView, ResumeReviewAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView, TrendingSkillsListView )
+    CulturalPreparationAPIView, ResumeBuilderAPIView, ResumeReviewAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView, TrendingSkillsListView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 
@@ -14,6 +14,7 @@ urlpatterns = [
     path('resume/career-roadmap/', CareerRoadmapAPIView.as_view(), name='career_roadmap'),
 
     path('trending-skills/', TrendingSkillsListView.as_view(), name='trending-skills-list'),
+    path('cultural-preparation/', CulturalPreparationAPIView.as_view(), name='cultural-preparation'),
 
     # 🔹 Applications (Talent-side submission)
     # path('applications/', ApplicationListCreateView.as_view(), name='application-list-create'),

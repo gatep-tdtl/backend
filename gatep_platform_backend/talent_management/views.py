@@ -454,6 +454,58 @@ class TrendingSkillsListView(generics.ListAPIView):
     serializer_class = TrendingSkillSerializer
     permission_classes = [IsAuthenticated]
 
+from django.core.cache import cache  # <--- ADD THIS LINE
+ 
+ 
+from .ai_cultural_prep import generate_cultural_preparation
+
+from rest_framework.views import APIView, Response
+class CulturalPreparationAPIView(APIView):
+    """
+    Provides AI-generated cultural preparation insights for a fixed
+    set of countries (UAE, USA, EU, Singapore).
+   
+    This view uses caching to avoid repeated, expensive API calls.
+    """
+    permission_classes = [IsAuthenticated]
+ 
+    def get(self, request, *args, **kwargs):
+        # Define a unique key for our cache
+        cache_key = 'cultural_preparation_insights'
+       
+        # 1. First, try to get the data from the cache
+        cached_insights = cache.get(cache_key)
+        if cached_insights:
+            print("Serving cultural insights from CACHE.")
+            return Response(cached_insights, status=status.HTTP_200_OK)
+ 
+        # 2. If not in cache, call the AI service
+        print("Cache miss. Calling AI service for cultural insights...")
+       
+        # --- Your hardcoded list of countries ---
+        countries = ["UAE", "USA", "EU", "Singapore"]
+ 
+        try:
+            insights = generate_cultural_preparation(countries)
+           
+            if insights is None:
+                return Response(
+                    {"error": "Failed to generate insights. The AI model may be unavailable."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+           
+            # 3. Save the new data to the cache for 24 hours (86400 seconds)
+            cache.set(cache_key, insights, timeout=86400)
+           
+            # 4. Return the successful response
+            return Response(insights, status=status.HTTP_200_OK)
+ 
+        except Exception as e:
+            return Response(
+                {"error": f"An unexpected internal server error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 
 

@@ -9,11 +9,12 @@ from rest_framework_simplejwt.views import (
 from auth_management.views import CustomLogoutView
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('admin1/', admin.site.urls),
     # Include auth_management app URLs
     path('api/', include('auth_management.urls')),
     path('api/', include('talent_management.urls')),
     path('api/', include('employer_management.urls')),
+    path('api/', include('admin_management.urls')),
 
     # JWT Authentication Endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
