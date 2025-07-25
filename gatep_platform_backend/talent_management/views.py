@@ -325,6 +325,7 @@ class ResumeBuilderAPIView(APIView):
     def _process_and_update_resume(self, request, user):
         """
         Handles the core logic for creating and updating a resume for POST, PUT, and PATCH.
+        This version correctly prioritizes data sources across all methods.
         """
         # Step 1: Get or Create the Resume instance for the authenticated user.
         resume, created = Resume.objects.get_or_create(talent_id=user, defaults={'is_deleted': False})
@@ -334,34 +335,32 @@ class ResumeBuilderAPIView(APIView):
         # Step 2: Extract data from the request.
         files = request.FILES
         
-        # Step 3: Run AI pipeline on a new PDF, if provided.
+        # Step 3: Run AI pipeline on a new PDF, if provided. This is our lowest-priority data.
         pdf_extracted_data = self.ai_pipeline.process_resume_data(files.get('resume_pdf'))
         
-        # Step 4: Get the user's explicit input from the request payload.
-        # The _structure_form_data method correctly handles both JSON and form-data.
+        # Step 4: Get the user's explicit input. This is our highest-priority data.
         user_input_data = self._structure_form_data(request.data)
 
-        # Step 5: Determine the final data to be saved based on the HTTP method.
-        final_data = {}
-        if request.method == 'POST':
-            # On creation, merge PDF data with user input (user input takes priority).
-            final_data = self._deep_update(pdf_extracted_data, user_input_data)
-        
-        elif request.method == 'PUT':
-            # A PUT is a full replacement. We IGNORE old DB data and PDF data.
-            # We only use the data provided by the user in the request body.
-            final_data = user_input_data
-
-        elif request.method == 'PATCH':
-            # On partial update, start with existing data from the database.
+        # Step 5: Establish the base data.
+        # For a brand new resume (POST) or a full replacement (PUT), we start fresh.
+        # For a partial update (PATCH), we start with the data already in the database.
+        base_data = {}
+        if request.method == 'PATCH':
             base_data = self._serialize_resume_to_json(resume)
-            # Merge PDF data on top of it.
-            merged_with_pdf = self._deep_update(base_data, pdf_extracted_data)
-            # Finally, apply the user's partial updates, which have the highest priority.
-            final_data = self._deep_update(merged_with_pdf, user_input_data)
+
+        # Step 6: Merge all data sources with the correct priority.
+        # Priority Order (from lowest to highest):
+        # 1. Base Data (existing DB state for PATCH, empty for POST/PUT)
+        # 2. PDF Extracted Data
+        # 3. User's Explicit Input
         
-        # Step 6: Update the model instance with the final, merged data and save it.
-        # The _update_resume_instance method will apply this final_data to the resume object.
+        # Merge base with PDF data
+        merged_data = self._deep_update(base_data, pdf_extracted_data)
+        
+        # Merge the result with the user's input, which overwrites everything else.
+        final_data = self._deep_update(merged_data, user_input_data)
+        
+        # Step 7: Update the model instance with the final, merged data and save it.
         self._update_resume_instance(resume, final_data, files)
         resume.save()
 
