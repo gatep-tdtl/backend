@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-    CulturalPreparationAPIView, ResumeBuilderAPIView, ResumeReviewAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView, TrendingSkillsListView )
+    CulturalPreparationAPIView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView, TrendingSkillsListView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 
@@ -15,13 +15,13 @@ urlpatterns = [
 
     path('trending-skills/', TrendingSkillsListView.as_view(), name='trending-skills-list'),
     path('cultural-preparation/', CulturalPreparationAPIView.as_view(), name='cultural-preparation'),
+    # 🔹 AI Salary Insight
+    path('ai/salary-insights/', SalaryInsightsAPIView.as_view(), name='ai-salary-insights'),
 
-    # 🔹 Applications (Talent-side submission)
-    # path('applications/', ApplicationListCreateView.as_view(), name='application-list-create'),
-    # path('applications/<int:pk>/', ApplicationDetailView.as_view(), name='application-detail'),
-
-   
-    # path('job-postings/', JobPostingListCreateView.as_view(), name='jobposting-list-create'),
-    # path('job-postings/ai-score/', JobListWithMatchingScoreAPIView.as_view(), name='jobposting-ai-score'),
+###################### interview bot urls ##########################333
+    path('mock-interview/start/', MockInterviewStartView.as_view(), name='mock-interview-start'),
+    path('mock-interview/verify-identity/', MockInterviewVerifyIdentityView.as_view(), name='mock-interview-verify-identity'),
+    path('mock-interview/submit-answer/', MockInterviewSubmitAnswerView.as_view(), name='mock-interview-submit-answer'),
+    path('mock-interview/report/<int:pk>/', MockInterviewReportView.as_view(), name='mock-interview-report'), # To retrieve final report
 
 ]

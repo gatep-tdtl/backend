@@ -408,3 +408,72 @@ class TrendingSkill(models.Model):
 
     def __str__(self):
         return self.skill
+    
+
+
+############################### interview bot models########################
+
+   
+class MockInterviewResult(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='mock_interview_results')
+    
+    interview_start_time = models.DateTimeField(auto_now_add=True)
+    interview_end_time = models.DateTimeField(blank=True, null=True)
+    
+    position_applied = models.CharField(max_length=255, verbose_name=_('Position Applied For'))
+    candidate_experience = models.TextField(verbose_name=_('Candidate Experience Description'))
+    
+    communication_overall_score = models.IntegerField(default=0, verbose_name=_('Communication Overall Score'))
+    psychometric_overall_score = models.IntegerField(default=0, verbose_name=_('Psychometric Overall Score'))
+    
+    aiml_specialization_input = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('AIML Specialization Input'))
+    aiml_specialization = models.JSONField(default=list, blank=True, null=True, verbose_name=_('AIML Specialization Details'))
+
+    # NEW FIELDS ADDED HERE
+    pre_generated_questions_data = models.JSONField(default=dict, blank=True, null=True, verbose_name=_('Pre-Generated Questions Data'))
+    full_qa_transcript = models.JSONField(default=list, blank=True, null=True, verbose_name=_('Full Q&A Transcript'))
+    technical_specialization_scores = models.JSONField(default=dict, blank=True, null=True, verbose_name=_('Technical Specialization Scores'))
+
+    identity_verified = models.BooleanField(default=False, verbose_name=_('Identity Verified'))
+    
+    # Malpractice Tracking
+    malpractice_detected = models.BooleanField(default=False, verbose_name=_('Malpractice Detected'))
+    malpractice_reason = models.TextField(blank=True, null=True, verbose_name=_('Malpractice Reason'))
+    
+    # Scores
+    global_readiness_score = models.IntegerField(default=0, verbose_name=_('Global Readiness Score'))
+    language_proficiency_score = models.IntegerField(default=0, verbose_name=_('Language Proficiency Score'))
+    language_analysis = models.TextField(blank=True, null=True, verbose_name=_('Language Analysis'))
+    
+    # Detailed round-wise analysis (JSONField to store the structure from the bot)
+    round_analysis_json = models.JSONField(default=dict, blank=True, null=True, verbose_name=_('Detailed Round Analysis (JSON)'))
+
+    # Interview Status
+    class InterviewStatus(models.TextChoices):
+        IN_PROGRESS = 'IN_PROGRESS', _('In Progress')
+        COMPLETED = 'COMPLETED', _('Completed Successfully')
+        TERMINATED_MALPRACTICE = 'TERMINATED_MALPRACTICE', _('Terminated Due to Malpractice')
+        TERMINATED_ERROR = 'TERMINATED_ERROR', _('Terminated Due to Error')
+        TERMINATED_MANUAL = 'TERMINATED_MANUAL', _('Manually Terminated')
+
+    status = models.CharField(
+        max_length=50,
+        choices=InterviewStatus.choices,
+        default=InterviewStatus.IN_PROGRESS,
+        verbose_name=_('Interview Status')
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Mock Interview Result')
+        verbose_name_plural = _('Mock Interview Results')
+        ordering = ['-interview_start_time']
+
+    def __str__(self):
+        return f"Mock Interview for {self.user.username} ({self.position_applied}) - {self.status}"
+    
+
+
+############################### interview bot models end ########################

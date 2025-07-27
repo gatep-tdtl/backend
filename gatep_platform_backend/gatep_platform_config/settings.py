@@ -17,7 +17,7 @@ SECRET_KEY = 'django-insecure-k)ai!jgwt66@6m8^t5pe#&3^y+%6er4bf+#isst%59oyad*j_2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -76,7 +76,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'gatep_platform_config.wsgi.application'
 
 
-# Database - Using user's provided values from the image and explicit request
+#Database - Using user's provided values from the image and explicit request
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',

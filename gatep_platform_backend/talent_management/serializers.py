@@ -200,3 +200,38 @@ class TrendingSkillSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrendingSkill
         fields = ['id', 'skill', 'demand', 'increase', 'priority', 'updated_at']
+
+
+
+
+################ interview bot serilizer #################33
+
+
+from .models import MockInterviewResult # ADD THIS IMPORT
+
+class MockInterviewResultSerializer(serializers.ModelSerializer):
+    user = serializers.ReadOnlyField(source='user.username') # Display username instead of user ID
+
+    class Meta:
+        model = MockInterviewResult
+        fields = [
+            'id', 'user', 'interview_start_time', 'interview_end_time',
+            'position_applied', 'candidate_experience', 'aiml_specialization_input',
+            'aiml_specialization', # NEW: Include this field
+            'identity_verified', 'malpractice_detected', 'malpractice_reason',
+            'global_readiness_score', 'language_proficiency_score', 'language_analysis',
+            'communication_overall_score', # NEW: Include this field
+            'psychometric_overall_score',  # NEW: Include this field
+            'technical_specialization_scores', # NEW: Include this field
+            'pre_generated_questions_data', # NEW: Include this field
+            'full_qa_transcript', # NEW: Include this field
+            'round_analysis_json', 'status', 'created_at', 'updated_at'
+        ]
+        read_only_fields = [
+            'user', 'interview_start_time', 'interview_end_time',
+            'malpractice_detected', 'malpractice_reason',
+            'global_readiness_score', 'language_proficiency_score',
+            'communication_overall_score', 'psychometric_overall_score',
+            'technical_specialization_scores', 'pre_generated_questions_data',
+            'full_qa_transcript', 'round_analysis_json', 'status', 'created_at', 'updated_at'
+        ]
