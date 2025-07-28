@@ -553,6 +553,43 @@ class ApplicationStatusUpdateView(generics.UpdateAPIView):
         return Response("thank you prathamesh, i am very grateful to you for making this api. " + request.data['status']+" successfully ", status=status.HTTP_200_OK)
 
 
+class ApplicationDeleteView(generics.DestroyAPIView):
+    """
+    API endpoint for a talent user to withdraw/delete their own application.
+    
+    This performs a "soft delete" by setting the application status to 'DELETED'
+    instead of removing the record from the database. This action is restricted
+    to the user who created the application.
+
+    Usage:
+    - METHOD: DELETE
+    - URL: /api/applications/<id>/
+    """
+    queryset = Application.objects.all()
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_destroy(self, instance):
+        """
+        Overrides the default delete behavior. Instead of deleting the object,
+        it updates the status to 'DELETED' and saves it.
+        """
+        # Make sure 'DELETED' is a valid choice in your Application model's status field.
+        instance.status = 'DELETED'
+        # Using update_fields is more efficient as it only touches the 'status' column.
+        instance.save(update_fields=['status'])
+
+    def destroy(self, request, *args, **kwargs):
+        """
+        Customizes the response message after a successful soft delete.
+        The default is to return 204 No Content, but a message is more user-friendly.
+        """
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(
+            {"detail": "Application has been successfully withdrawn."},
+            status=status.HTTP_200_OK  # Return 200 OK with a message
+        )
+
 
 
 
