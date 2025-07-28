@@ -433,6 +433,24 @@ class ResumeReviewAPIView(APIView):
 
 class SkillGapAnalysisAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    def _safe_json_loads(self, data, default=None):
+        """
+        Safely loads a JSON string.
+        Returns the default value if the data is None, empty, or not valid JSON.
+        """
+        # If the data from the DB is already a Python object (e.g., from a JSONField),
+        # no need to parse it.
+        if isinstance(data, (list, dict)):
+            return data
+            
+        if data is None or data == '':
+            return default if default is not None else []
+        
+        try:
+            return json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            # Return the default value if parsing fails
+            return default if default is not None else []
     def get(self, request, *args, **kwargs):
         user = request.user
         try:
@@ -455,6 +473,24 @@ class SkillGapAnalysisAPIView(APIView):
 
 class CareerRoadmapAPIView(APIView):
     permission_classes = [IsAuthenticated]
+    def _safe_json_loads(self, data, default=None):
+        """
+        Safely loads a JSON string.
+        Returns the default value if the data is None, empty, or not valid JSON.
+        """
+        # If the data from the DB is already a Python object (e.g., from a JSONField),
+        # no need to parse it.
+        if isinstance(data, (list, dict)):
+            return data
+            
+        if data is None or data == '':
+            return default if default is not None else []
+        
+        try:
+            return json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            # Return the default value if parsing fails
+            return default if default is not None else []
     def get(self, request, *args, **kwargs):
         user = request.user
         try:
