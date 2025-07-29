@@ -229,19 +229,30 @@ class GlobalDashboardOverviewAPIView(APIView):
 
         ai_keywords = ['AI', 'Artificial Intelligence', 'Machine Learning', 'Deep Learning', 'NLP', 'Computer Vision', 'Data Science']
 
+        # def get_ai_talent_count(start_date=None, end_date=None):
+        #     qs = CustomUser.objects.filter(user_role=UserRole.TALENT)
+        #     if start_date:
+        #         qs = qs.filter(date_joined__date__gte=start_date)
+        #     if end_date:
+        #         qs = qs.filter(date_joined__date__lte=end_date)
+
+        #     # ➕ Ensure users have resumes
+        #     qs = qs.filter(resumes__isnull=False)
+
+        #     ai_skill_conditions = Q()
+        #     for keyword in ai_keywords:
+        #         ai_skill_conditions |= Q(resumes__skills__icontains=keyword)
+
+        #     matching = qs.filter(ai_skill_conditions).distinct()
+        #     print("DEBUG AI Talent Count →", matching.count())
+        #     return matching.count()
         def get_ai_talent_count(start_date=None, end_date=None):
             qs = CustomUser.objects.filter(user_role=UserRole.TALENT)
             if start_date:
                 qs = qs.filter(date_joined__date__gte=start_date)
             if end_date:
                 qs = qs.filter(date_joined__date__lte=end_date)
-
-            ai_skill_conditions = Q()
-            for keyword in ai_keywords:
-                ai_skill_conditions |= Q(resumes__skills__icontains=keyword)
-
-            return qs.filter(ai_skill_conditions).distinct().count()
-
+            return qs.count()
         registered_ai_talent_this_month = get_ai_talent_count(start_date=this_month_start, end_date=today)
         registered_ai_talent_last_month = get_ai_talent_count(start_date=last_month_start, end_date=last_month_end)
         total_registered_ai_talent = get_ai_talent_count()
@@ -322,8 +333,6 @@ class GlobalDashboardOverviewAPIView(APIView):
             return "just now"
 
         recent_activities = []
-
-        # Placements
         recent_placements = Application.objects.filter(status=ApplicationStatus.HIRED).select_related('talent', 'job_posting').order_by('-application_date')[:2]
         for app in recent_placements:
             recent_activities.append({
@@ -332,7 +341,6 @@ class GlobalDashboardOverviewAPIView(APIView):
                 "time_ago": get_time_ago_string(app.application_date)
             })
 
-        # Registrations
         recent_users = CustomUser.objects.order_by('-date_joined')[:2]
         for user in recent_users:
             role_label = user.get_user_role_display() if hasattr(user, 'get_user_role_display') else user.user_role
@@ -342,7 +350,6 @@ class GlobalDashboardOverviewAPIView(APIView):
                 "time_ago": get_time_ago_string(user.date_joined)
             })
 
-        # Verifications
         verified_count = Resume.objects.filter(
             document_verification='VERIFIED',
             updated_at__gte=timezone.now() - timedelta(days=7)
@@ -353,11 +360,9 @@ class GlobalDashboardOverviewAPIView(APIView):
             "time_ago": "recently"
         })
 
-        # Interviews
         recent_interviews = Interview.objects.filter(
             scheduled_at__gte=timezone.now() - timedelta(days=7)
         ).select_related('application__talent', 'application__job_posting').order_by('-scheduled_at')[:2]
-
         for interview in recent_interviews:
             recent_activities.append({
                 "type": "Interview",
@@ -365,7 +370,6 @@ class GlobalDashboardOverviewAPIView(APIView):
                 "time_ago": get_time_ago_string(interview.scheduled_at)
             })
 
-        # === System Health (NO model used) ===
         system_health_data = [
             {"service": "Aadhaar Integration", "status": "Online"},
             {"service": "DigiLocker API", "status": "Online"},
@@ -374,7 +378,6 @@ class GlobalDashboardOverviewAPIView(APIView):
             {"service": "Notification Service", "status": "Online"}
         ]
 
-        # === KPIs ===
         total_profiles = TalentProfile.objects.count()
         profile_completion = "75%" if total_profiles > 0 else "N/A"
         total_interviews = Interview.objects.count()
@@ -383,7 +386,6 @@ class GlobalDashboardOverviewAPIView(APIView):
         average_placement_time = "30 Days"
         employer_satisfaction = "92%"
 
-        # Final Response
         response_data =  {
             "registered_ai_talent": {
                 "count": total_registered_ai_talent,
@@ -401,10 +403,14 @@ class GlobalDashboardOverviewAPIView(APIView):
             "regional_performance": regional_performance_data,
             "recent_system_activity": recent_activities,
             "SystemHealthStatus": system_health_data,
-
+            "key_performance_indicators": {
+                "profile_completion": profile_completion,
+                "interview_success_rate": f"{interview_success_rate:.0f}%",
+                "average_placement_time": average_placement_time,
+                "employer_satisfaction": employer_satisfaction
+            }
         }
-        return Response(response_data, status=status.HTTP_200_OK)
-    
+        return Response(response_data, status=status.HTTP_200_OK)    
 # class SystemHealthStatuSViewSet(viewsets.ModelViewSet):
 #     """
 #     API endpoint that allows SystemHealthStatus to be viewed or edited.

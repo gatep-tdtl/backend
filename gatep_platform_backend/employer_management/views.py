@@ -734,5 +734,58 @@ class HiringAnalyticsDashboardViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
+
+from django.db import connection     
+class EmployerDashboardAPIView(APIView):
+    def get(self, request):
+        dashboard_data = {}
+
+        # --- 1. Top Matched Candidates ---
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT skills, current_city, email 
+                FROM gatep_platform_db.talent_management_resume 
+                LIMIT 5
+            """)
+            candidates = cursor.fetchall()
+        
+        dashboard_data['top_matched_candidates'] = [
+            {
+                'skills': row[0],
+                'location': row[1],
+                'email': row[2]
+            } for row in candidates
+        ]
+
+        # --- 2. Active Jobs Count ---
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM gatep_platform_db.employer_management_jobposting
+            """)
+            dashboard_data['active_jobs'] = cursor.fetchone()[0]
+
+        # --- 3. Total Applicants with 'applied' status ---
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM gatep_platform_db.employer_management_application 
+                WHERE status = 'applied'
+            """)
+            dashboard_data['total_applicants'] = cursor.fetchone()[0]
+
+        # --- 4. Interviews Scheduled ---
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM gatep_platform_db.employer_management_interview 
+                WHERE scheduled_at IS NOT NULL
+            """)
+            dashboard_data['interview_scheduled'] = cursor.fetchone()[0]
+
+        # --- 5. Offer Extended (No table) ---
+        dashboard_data['offer_extended'] = 0  # Placeholder
+
+        return Response(dashboard_data)
     
 ###################### nikita's code end ##############################
