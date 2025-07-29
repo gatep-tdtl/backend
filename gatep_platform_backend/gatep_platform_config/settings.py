@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'auth_management',    # Your authentication API app
     'employer_management',
     'admin_management',   # Your admin management app
+    'chatbot',  # Your chatbot app
 ]
 
 MIDDLEWARE = [

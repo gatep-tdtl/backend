@@ -15,6 +15,7 @@ urlpatterns = [
     path('api/', include('talent_management.urls')),
     path('api/', include('employer_management.urls')),
     path('api/', include('admin_management.urls')),
+    path('api/chatbot/', include('chatbot.urls')),
 
     # JWT Authentication Endpoints
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
