@@ -201,9 +201,17 @@ class TrendingSkillSerializer(serializers.ModelSerializer):
         model = TrendingSkill
         fields = ['id', 'skill', 'demand', 'increase', 'priority', 'updated_at']
 
+from rest_framework import serializers
 
+class CareerRoadmapRequestSerializer(serializers.Serializer):
+    current_role = serializers.CharField()
+    experience_years = serializers.FloatField()
+    interests = serializers.CharField()
+    target_roles = serializers.ListField(child=serializers.CharField())
 
-
+ 
+class SkillGapAnalysisRequestSerializer(serializers.Serializer):
+    selected_roles = serializers.ListField(child=serializers.CharField())
 ################ interview bot serilizer #################33
 
 

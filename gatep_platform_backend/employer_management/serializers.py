@@ -58,7 +58,7 @@ class JobPostingSerializer(serializers.ModelSerializer):
             'status', 'status_display', 
             'application_deadline', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['created_at', 'updated_at'] 
+        read_only_fields = ['created_at', 'updated_at' , 'company'] 
 
     def get_status_display(self, obj):
         return obj.get_status_display()
@@ -131,6 +131,11 @@ class InterviewSerializer(serializers.ModelSerializer):
     def get_interview_status_display(self, obj):
         return obj.get_interview_status_display()
     
+class InterviewStatusUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Interview
+        fields = ['interview_status']
+
 
 # --- Saved Job Serializers ---
 class SavedJobSerializer(serializers.ModelSerializer):

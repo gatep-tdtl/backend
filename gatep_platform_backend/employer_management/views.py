@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
-    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
+    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, InterviewStatusUpdateSerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
     SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
 from utils.ai_match import get_ai_match_score
@@ -193,7 +193,6 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         # Ensure the user is a talent
-        print ("reached to create application")
         if not hasattr(self.request.user, 'user_role') or self.request.user.user_role != UserRole.TALENT:
             raise serializers.ValidationError({"detail": "Only Talent users can submit applications."})
 
@@ -201,8 +200,16 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
         if not job_posting:
             raise serializers.ValidationError({"job_posting": "Job posting is required."})
 
-        if Application.objects.filter(job_posting=job_posting, talent=self.request.user).exists():
-            raise serializers.ValidationError({"detail": "You have already applied for this job."})
+        existing_application = Application.objects.filter(job_posting=job_posting, talent=self.request.user).first()
+        if existing_application:
+            if existing_application.status == ApplicationStatus.DELETED:
+                # Reactivate the deleted application
+                existing_application.status = ApplicationStatus.APPLIED
+                existing_application.save(update_fields=['status'])
+                # Optionally, update other fields if needed
+                raise serializers.ValidationError({"detail": "Your previous withdrawn application has been re-applied."})
+            else:
+                raise serializers.ValidationError({"detail": "You have already applied for this job."})
 
         serializer.save(talent=self.request.user, status=ApplicationStatus.APPLIED)
 
@@ -260,7 +267,19 @@ class InterviewListCreateView(generics.ListCreateAPIView):
             raise permissions.PermissionDenied("You can only schedule interviews for your company's job postings.")
         
         serializer.save(interviewer=self.request.user)
-    
+
+class InterviewStatusUpdateView(generics.UpdateAPIView):
+    queryset = Interview.objects.all()
+    serializer_class = InterviewStatusUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsInterviewParticipantOrJobOwner]
+    http_method_names = ['patch']
+
+    def get_object(self):
+        obj = super().get_object()
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+
 class InterviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Interview.objects.all()
     serializer_class = InterviewSerializer
