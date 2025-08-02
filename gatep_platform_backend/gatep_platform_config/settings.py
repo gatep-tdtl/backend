@@ -204,12 +204,44 @@ SIMPLE_JWT = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_ALL_ORIGINS = True
 
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-#     "http://your-production-domain.com",
-# ]
+# # CORS_ALLOWED_ORIGINS = [
+# #     "http://localhost:3000",
+# #     "http://127.0.0.1:3000",
+# #     "http://your-production-domain.com",
+# # ]
 
+# CORS_ALLOW_CREDENTIALS = True
+
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:5500", # Common port for VS Code Live Server
+    "http://localhost:3000",
+    "null",
+]
+
+# This is the key setting that allows the browser to send cookies.
 CORS_ALLOW_CREDENTIALS = True
+
+# Allow the headers your frontend will be sending. 'Authorization' is for JWT.
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'authorization',
+    'content-type',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# 2. COOKIES: Configure cookies for cross-site requests.
+# The browser will only send cookies cross-site if SameSite is 'None'.
+SESSION_COOKIE_SAMESITE = 'None'
+# The browser also REQUIRES that a cookie with SameSite='None' be 'Secure'.
+SESSION_COOKIE_SECURE = True
+
+# This is needed for Django to trust the 'X-Forwarded-Proto' header from a proxy
+# if you are running behind something like Nginx in production. It's safe to set.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
