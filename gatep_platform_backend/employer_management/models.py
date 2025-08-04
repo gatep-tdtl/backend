@@ -23,6 +23,7 @@ class ApplicationStatus(models.TextChoices):
     HIRED = 'HIRED', 'Hired'
     WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
     DELETED = 'DELETED', 'Deleted'
+    SCHEDULED = 'SCHEDULED', 'Scheduled'
 
 class InterviewType(models.TextChoices):
     INITIAL_SCREEN = 'INITIAL_SCREEN', 'Initial Screen'

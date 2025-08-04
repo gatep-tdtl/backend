@@ -11,7 +11,7 @@ from django.shortcuts import get_object_or_404
 from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
-    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, InterviewStatusUpdateSerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer,
+    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, InterviewStatusUpdateSerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer, PotentialCandidateSerializer,
     SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
 from utils.ai_match import get_ai_match_score
@@ -159,6 +159,71 @@ class CloseJobPostingView(APIView):
         job_posting.is_active = False
         job_posting.save()
         return Response({'detail': 'Job posting closed.'}, status=status.HTTP_200_OK)
+
+class PotentialCandidateMatchView(APIView):
+    """
+    API endpoint for an employer to discover potential candidates from the talent pool
+    who have NOT applied for a specific job, ranked by their AI match score.
+    
+    Accessible via: GET /api/job-postings/<job_posting_id>/potential-candidates/
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
+
+    def get(self, request, job_posting_id, *args, **kwargs):
+        # 1. Get the Job Posting object and verify the requesting employer owns it.
+        job_posting = get_object_or_404(JobPosting, pk=job_posting_id)
+        self.check_object_permissions(request, job_posting) # This runs the IsJobPostingOwner check
+
+        # 2. Get the list of required skills from the job posting.
+        job_required_skills = job_posting.required_skills if job_posting.required_skills else []
+        if not job_required_skills:
+            return Response({"detail": "Job posting has no required skills listed."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 3. Find all talent IDs who HAVE already applied to this job.
+        applied_talent_ids = Application.objects.filter(job_posting=job_posting).values_list('talent_id', flat=True)
+
+        # 4. Get the entire pool of potential talents, EXCLUDING those who have already applied.
+        potential_talents = CustomUser.objects.filter(
+            user_role=UserRole.TALENT
+        ).exclude(
+            id__in=applied_talent_ids
+        )
+
+        candidate_scores = []
+
+        # 5. Iterate through the potential talents to calculate their individual match scores.
+        for talent in potential_talents:
+            # Get the talent's skills from their latest resume
+            # 
+            # --- THIS IS THE CORRECTED LINE ---
+            resume = Resume.objects.filter(talent_id=talent.id, is_deleted=False).order_by('-updated_at').first()
+            # ------------------------------------
+            #
+            user_skills = []
+            if resume and resume.skills:
+                try:
+                    user_skills = json.loads(resume.skills)
+                except (json.JSONDecodeError, TypeError):
+                    user_skills = [s.strip() for s in str(resume.skills).split(',') if s.strip()]
+
+            # Calculate score only if the user has skills
+            if user_skills:
+                score = get_ai_match_score(user_skills, job_required_skills)
+                candidate_scores.append({
+                    'talent_id': talent.id,
+                    'name': f"{talent.first_name} {talent.last_name}".strip() or talent.username,
+                    'ai_match_score': score,
+                })
+
+        # 6. Sort the list of candidates by their score in descending order (highest first).
+        sorted_candidates = sorted(candidate_scores, key=lambda x: x['ai_match_score'], reverse=True)
+
+        # 7. Serialize the final ranked list and return the response.
+        serializer = PotentialCandidateSerializer(sorted_candidates, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+
 
 
 class ApplicationListCreateView(generics.ListCreateAPIView):

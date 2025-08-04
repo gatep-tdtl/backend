@@ -3,7 +3,7 @@ from employer_management.views import (
     ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewStatusUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
-    InterviewListCreateView, InterviewDetailView, PublishJobPostingView,
+    InterviewListCreateView, InterviewDetailView, PotentialCandidateMatchView, PublishJobPostingView,
     SaveJobView, TalentInterviewListView, UnsaveJobView, ListSavedJobsView,
     EmployerApplicationListForJobView, EmployerApplicationDetailView,
     JobListWithMatchingScoreAPIView,
@@ -32,7 +32,7 @@ urlpatterns = [
     path('job-postings/<int:job_posting_id>/applications/<int:pk>/', EmployerApplicationDetailView.as_view(), name='employer-job-application-detail'),
     path('jobpostings/<int:pk>/publish/', PublishJobPostingView.as_view(), name='jobposting-publish'),
     path('jobpostings/<int:pk>/close/', CloseJobPostingView.as_view(), name='jobposting-close'),
-
+    path('job-postings/<int:job_posting_id>/potential-candidates/', PotentialCandidateMatchView.as_view(), name='job-potential-candidates'),
     # Interviews
     path('interviews/', InterviewListCreateView.as_view(), name='interview-list-create'),
     path('interviews/<int:pk>/', InterviewDetailView.as_view(), name='interview-detail'),
