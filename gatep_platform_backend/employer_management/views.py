@@ -191,27 +191,44 @@ class ApplicationListCreateView(generics.ListCreateAPIView):
                                .order_by('-application_date')
         return Application.objects.none()
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
         # Ensure the user is a talent
-        if not hasattr(self.request.user, 'user_role') or self.request.user.user_role != UserRole.TALENT:
-            raise serializers.ValidationError({"detail": "Only Talent users can submit applications."})
+        if not hasattr(request.user, 'user_role') or request.user.user_role != UserRole.TALENT:
+            return Response({"detail": "Only Talent users can submit applications."}, status=status.HTTP_400_BAD_REQUEST)
 
-        job_posting = serializer.validated_data.get('job_posting')
+        job_posting_id = request.data.get('job_posting')
+        if not job_posting_id:
+            return Response({"job_posting": "Job posting is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # You may need to fetch the job_posting instance if the serializer expects an object, not just an ID
+        job_posting = JobPosting.objects.filter(pk=job_posting_id).first()
         if not job_posting:
-            raise serializers.ValidationError({"job_posting": "Job posting is required."})
+            return Response({"job_posting": "Job posting not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        existing_application = Application.objects.filter(job_posting=job_posting, talent=self.request.user).first()
+        existing_application = Application.objects.filter(job_posting=job_posting, talent=request.user).first()
         if existing_application:
             if existing_application.status == ApplicationStatus.DELETED:
                 # Reactivate the deleted application
                 existing_application.status = ApplicationStatus.APPLIED
                 existing_application.save(update_fields=['status'])
-                # Optionally, update other fields if needed
-                raise serializers.ValidationError({"detail": "Your previous withdrawn application has been re-applied."})
+                # Return 200 OK with a custom message
+                serializer = self.get_serializer(existing_application)
+                return Response(
+                    {
+                        "detail": "Your previous withdrawn application has been re-applied.",
+                        "application": serializer.data
+                    },
+                    status=status.HTTP_200_OK
+                )
             else:
-                raise serializers.ValidationError({"detail": "You have already applied for this job."})
+                return Response({"detail": "You have already applied for this job."}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save(talent=self.request.user, status=ApplicationStatus.APPLIED)
+        # If no existing application, proceed as normal
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(talent=request.user, status=ApplicationStatus.APPLIED)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 class ApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
     # This view is for general application detail, used by talent to withdraw or employer to update

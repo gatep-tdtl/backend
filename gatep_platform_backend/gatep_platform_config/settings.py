@@ -215,13 +215,25 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # CORS_ALLOW_CREDENTIALS = True
 
 
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:8000",
+#     "http://127.0.0.1:8000",
+#     "http://127.0.0.1:5500", # Common port for VS Code Live Server
+#     "http://localhost:3000",
+#     "https://tdtlworld.com/"
+#     "null",
+# ]
+
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     "http://127.0.0.1:5500", # Common port for VS Code Live Server
     "http://localhost:3000",
+    "https://tdtlworld.com",
     "null",
 ]
+
+
 
 # This is the key setting that allows the browser to send cookies.
 CORS_ALLOW_CREDENTIALS = True

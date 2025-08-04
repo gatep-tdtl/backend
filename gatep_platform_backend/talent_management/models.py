@@ -392,22 +392,22 @@ class JobListing(models.Model):
 ###################### viashnavi's code ###############
 
 
-#add to the bottom
-class TrendingSkill(models.Model):
-    skill = models.CharField(max_length=100, unique=True, verbose_name=_('Skill Name'))
-    demand = models.CharField(max_length=20, blank=True, verbose_name=_('Demand Percentage'))
-    increase = models.CharField(max_length=20, blank=True, verbose_name=_('Increase Over Last Year'))
-    priority = models.CharField(max_length=50, blank=True, verbose_name=_('Priority Level'))
-    updated_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+# #add to the bottom
+# class TrendingSkill(models.Model):
+#     # 👇 ADD THIS FIELD
+#     role = models.CharField(max_length=255, default='AI/ML Engineer') 
+#     skill = models.CharField(max_length=255)
+#     demand = models.CharField(max_length=50, blank=True)
+#     increase = models.CharField(max_length=50, blank=True)
+#     priority = models.CharField(max_length=50, blank=True)
 
-    class Meta:
-        verbose_name = _('Trending Skill')
-        verbose_name_plural = _('Trending Skills')
-        ordering = ['id']
+#     def __str__(self):
+#         return f"{self.skill} ({self.role})"
 
-    def __str__(self):
-        return self.skill
+#     class Meta:
+#         # Ensures you don't have the same skill listed twice for the same role
+#         unique_together = ('role', 'skill')
+#         ordering = ['role', '-priority']
     
 
 

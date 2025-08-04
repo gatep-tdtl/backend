@@ -192,13 +192,13 @@ class JobPostingSerializer(serializers.ModelSerializer):
 ########## vaishnavi's code #################33
 
 
-from .models import CustomUser, TalentProfile, Resume, TrendingSkill
+from .models import CustomUser, TalentProfile, Resume
 
 
 #add to the bottom
 class TrendingSkillSerializer(serializers.ModelSerializer):
     class Meta:
-        model = TrendingSkill
+        # model = TrendingSkill
         fields = ['id', 'skill', 'demand', 'increase', 'priority', 'updated_at']
 
 from rest_framework import serializers

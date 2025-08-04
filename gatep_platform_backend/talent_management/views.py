@@ -536,66 +536,79 @@ class CareerRoadmapAPIView(APIView):
 
 # ... your other views like TrendingSkillsListView ...
 from rest_framework import generics
-from .models import TrendingSkill
+# from .models import TrendingSkill
 from .serializers import SkillGapAnalysisRequestSerializer, TrendingSkillSerializer
 
 class TrendingSkillsListView(generics.ListAPIView):
-    queryset = TrendingSkill.objects.all()
+    # queryset = TrendingSkill.objects.all()
     serializer_class = TrendingSkillSerializer
     permission_classes = [IsAuthenticated]
 
 from django.core.cache import cache  # <--- ADD THIS LINE
  
- 
-from .ai_cultural_prep import generate_cultural_preparation
-
-from rest_framework.views import APIView, Response
+from employer_management.models import JobPosting
+from .ai_cultural_prep import generate_cultural_preparation, extract_unique_locations
 class CulturalPreparationAPIView(APIView):
     """
-    Provides AI-generated cultural preparation insights for a fixed
-    set of countries (UAE, USA, EU, Singapore).
-   
-    This view uses caching to avoid repeated, expensive API calls.
+    Provides AI-generated cultural preparation insights for ALL unique
+    job locations stored in the database.
+
+    This view fetches locations from the JobPosting model, generates insights
+    for the unique set of those locations, and uses caching to avoid
+    repeated, expensive API calls.
     """
-    permission_classes = [IsAuthenticated]
- 
+    # permission_classes = [IsAuthenticated]
+
     def get(self, request, *args, **kwargs):
-        # Define a unique key for our cache
-        cache_key = 'cultural_preparation_insights'
-       
+        # Define a single, static cache key for this system-wide data.
+        cache_key = 'all_locations_cultural_insights'
+
         # 1. First, try to get the data from the cache
         cached_insights = cache.get(cache_key)
         if cached_insights:
-            print("Serving cultural insights from CACHE.")
+            print("Serving all-location cultural insights from CACHE.")
             return Response(cached_insights, status=status.HTTP_200_OK)
- 
-        # 2. If not in cache, call the AI service
-        print("Cache miss. Calling AI service for cultural insights...")
-       
-        # --- Your hardcoded list of countries ---
-        countries = ["UAE", "USA", "EU", "Singapore"]
- 
+
+        # 2. If not in cache, fetch unique locations from the JobPosting model
+        print(f"Cache miss for '{cache_key}'. Fetching locations from database...")
+
+        # Use the Django ORM to get a distinct list of non-empty locations
+        # .values_list('location', flat=True) is efficient for getting a single column
+        # .distinct() makes the database do the work of finding unique values
+        db_locations = JobPosting.objects.values_list('location', flat=True).distinct()
+
+        # The result from the DB is a QuerySet; clean it up.
+        # The extract_unique_locations function is great for stripping whitespace and handling any oddities.
+        unique_locations = extract_unique_locations(list(db_locations))
+
+        if not unique_locations:
+            # If there are no locations in the database yet, return an empty but successful response.
+            return Response({"cultural_preparation": []}, status=status.HTTP_200_OK)
+
+        # 3. Call the AI service with the list of unique locations
+        print(f"Calling AI service for cultural insights on: {unique_locations}")
+
         try:
-            insights = generate_cultural_preparation(countries)
-           
-            if insights is None:
+            insights = generate_cultural_preparation(unique_locations)
+
+            if not insights:
                 return Response(
-                    {"error": "Failed to generate insights. The AI model may be unavailable."},
+                    {"error": "Failed to generate insights. The AI model may be unavailable or returned invalid data."},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
-           
-            # 3. Save the new data to the cache for 24 hours (86400 seconds)
+
+            # 4. Save the new data to the cache for 24 hours (86400 seconds)
             cache.set(cache_key, insights, timeout=86400)
-           
-            # 4. Return the successful response
+
+            # 5. Return the successful response
             return Response(insights, status=status.HTTP_200_OK)
- 
+
         except Exception as e:
+            # General fallback for any unexpected errors
             return Response(
                 {"error": f"An unexpected internal server error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 
 
 
