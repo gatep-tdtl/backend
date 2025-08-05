@@ -864,10 +864,10 @@ class EmployerDashboardAPIView(APIView):
 
         return Response(dashboard_data)
 
-
+import re
 
 class EmployerAnalyticsDemographicAPIView(APIView):
-    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+    # permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
  
     def get(self, request):
         data = {}
