@@ -146,16 +146,27 @@ AUTH_USER_MODEL = 'talent_management.CustomUser'
 # Email Configuration for OTP sending - MODIFIED to use SMTP
 # For development, 'django.core.mail.backends.console.EmailBackend' prints emails to the console.
 # UNCOMMENT THE LINE BELOW AND COMMENT OUT THE CONSOLE BACKEND LINE TO SEND REAL EMAILS
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' # Changed to SMTP backend
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # Comment out or remove this line
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' # Changed to SMTP backend
+# # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend' # Comment out or remove this line
 
-EMAIL_HOST = 'smtp.gmail.com' # Your email provider's SMTP host
-EMAIL_PORT = 587
+# EMAIL_HOST = 'smtp.gmail.com' # Your email provider's SMTP host
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'rctemp19@gmail.com' # Your actual sending email address
+# EMAIL_HOST_PASSWORD = 'nkli finf mjfi tear' # Your email password or app-specific password
+
+# DEFAULT_FROM_EMAIL = 'rctemp19@gmail.com' # Your default 'from' email address
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.hostinger.com'
+EMAIL_PORT = 587  # Change to the appropriate port
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'rctemp19@gmail.com' # Your actual sending email address
-EMAIL_HOST_PASSWORD = 'nkli finf mjfi tear' # Your email password or app-specific password
+EMAIL_HOST_USER = 'support@thedatatechlabs.com'
+EMAIL_HOST_PASSWORD = 'Tdtl@2025#'
+DEFAULT_FROM_EMAIL = 'support@thedatatechlabs.com'
 
-DEFAULT_FROM_EMAIL = 'rctemp19@gmail.com' # Your default 'from' email address
+
+
 
 HFF_TOKEN = os.environ.get("HFF_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")

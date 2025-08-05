@@ -80,14 +80,13 @@ class JobPostingSerializer(serializers.ModelSerializer):
         elif 'company' not in validated_data:
             raise serializers.ValidationError({"company": "This field is required if not auto-assigned by employer."})
         return super().create(validated_data)
+    
 class PotentialCandidateSerializer(serializers.Serializer):
-    """
-    Serializer for displaying a potential candidate (who hasn't applied)
-    with their AI match score for a specific job.
-    """
     talent_id = serializers.IntegerField()
     name = serializers.CharField()
     ai_match_score = serializers.FloatField()
+    location = serializers.CharField(allow_null=True, required=False)
+    resume_url = serializers.CharField(allow_null=True, required=False)
 
 
 

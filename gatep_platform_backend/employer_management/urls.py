@@ -1,6 +1,6 @@
 from django.urls import path
 from employer_management.views import (
-    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewStatusUpdateView,
+    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmployerAnalyticsDemographicAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewStatusUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView, PotentialCandidateMatchView, PublishJobPostingView,
@@ -56,6 +56,6 @@ urlpatterns = [
     path('hiring-analytics/combined-dashboard/', CombinedDashboardView.as_view(),name='hiring-analytics-combined-dashboard'),
     path('hiring-analytics/top-matching-candidates/',HiringAnalyticsDashboardViewSet.as_view({'get': 'top_matching_candidates'}),name='hiring-analytics-top-candidates'),
     path('employer-dashboard/', EmployerDashboardAPIView.as_view(), name='employer-dashboard'),
-
+    path('employer-analytics/demographic/', EmployerAnalyticsDemographicAPIView.as_view(), name='employer-analytics-demographic'),
     
 ]

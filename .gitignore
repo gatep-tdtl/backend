@@ -10,6 +10,12 @@ __pycache__/
 
 *.env
 
+
+# Virtual environments
+venv/
+venv311/
+
+
 # Django migrations (optional, sometimes useful to track)
 **/migrations/*.pyc
 **/migrations/__pycache__/

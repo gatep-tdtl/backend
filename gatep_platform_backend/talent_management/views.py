@@ -1521,3 +1521,56 @@ class MalpracticeDetectionView(APIView):
                 {"error": f"An internal error occurred while terminating the interview: {e}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+
+
+
+
+
+#################### speach to text model ################# 
+import os
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.response import Response
+from rest_framework import status
+import whisper
+from django.conf import settings
+
+
+class AudioTranscriptionView(APIView):
+    parser_classes = (MultiPartParser, FormParser)
+
+    def post(self, request, *args, **kwargs):
+        audio_file = request.FILES.get("audio")
+        print("reached here...")
+
+        if not audio_file:
+            return Response({"error": "No audio file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Ensure media/uploads folder exists
+            upload_folder = os.path.join(settings.MEDIA_ROOT, 'uploads')
+            os.makedirs(upload_folder, exist_ok=True)
+
+            # Save file
+            file_path = os.path.join(upload_folder, audio_file.name)
+            with open(file_path, 'wb+') as f:
+                for chunk in audio_file.chunks():
+                    f.write(chunk)
+
+            print("Saved file at:", file_path)
+
+            # Transcribe
+            model = whisper.load_model("base")
+            result = model.transcribe(file_path)
+            transcription = result.get("text", "")
+
+            return Response({"transcription": transcription}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        finally:
+            # Delete the file
+            if os.path.exists(file_path):
+                os.remove(file_path)

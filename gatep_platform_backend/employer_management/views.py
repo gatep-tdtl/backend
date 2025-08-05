@@ -164,25 +164,20 @@ class PotentialCandidateMatchView(APIView):
     """
     API endpoint for an employer to discover potential candidates from the talent pool
     who have NOT applied for a specific job, ranked by their AI match score.
-    
+
     Accessible via: GET /api/job-postings/<job_posting_id>/potential-candidates/
     """
     permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
 
     def get(self, request, job_posting_id, *args, **kwargs):
-        # 1. Get the Job Posting object and verify the requesting employer owns it.
         job_posting = get_object_or_404(JobPosting, pk=job_posting_id)
-        self.check_object_permissions(request, job_posting) # This runs the IsJobPostingOwner check
+        self.check_object_permissions(request, job_posting)
 
-        # 2. Get the list of required skills from the job posting.
         job_required_skills = job_posting.required_skills if job_posting.required_skills else []
         if not job_required_skills:
             return Response({"detail": "Job posting has no required skills listed."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 3. Find all talent IDs who HAVE already applied to this job.
         applied_talent_ids = Application.objects.filter(job_posting=job_posting).values_list('talent_id', flat=True)
-
-        # 4. Get the entire pool of potential talents, EXCLUDING those who have already applied.
         potential_talents = CustomUser.objects.filter(
             user_role=UserRole.TALENT
         ).exclude(
@@ -191,14 +186,8 @@ class PotentialCandidateMatchView(APIView):
 
         candidate_scores = []
 
-        # 5. Iterate through the potential talents to calculate their individual match scores.
         for talent in potential_talents:
-            # Get the talent's skills from their latest resume
-            # 
-            # --- THIS IS THE CORRECTED LINE ---
             resume = Resume.objects.filter(talent_id=talent.id, is_deleted=False).order_by('-updated_at').first()
-            # ------------------------------------
-            #
             user_skills = []
             if resume and resume.skills:
                 try:
@@ -206,19 +195,21 @@ class PotentialCandidateMatchView(APIView):
                 except (json.JSONDecodeError, TypeError):
                     user_skills = [s.strip() for s in str(resume.skills).split(',') if s.strip()]
 
-            # Calculate score only if the user has skills
             if user_skills:
                 score = get_ai_match_score(user_skills, job_required_skills)
+                # Get location and resume URL (adjust field names as per your models)
+                location = getattr(talent, 'current_location', None)
+                resume_url = resume.resume_file.url if resume and hasattr(resume, 'resume_file') and resume.resume_file else None
+
                 candidate_scores.append({
                     'talent_id': talent.id,
                     'name': f"{talent.first_name} {talent.last_name}".strip() or talent.username,
                     'ai_match_score': score,
+                    'location': location,
+                    'resume_url': resume_url,
                 })
 
-        # 6. Sort the list of candidates by their score in descending order (highest first).
         sorted_candidates = sorted(candidate_scores, key=lambda x: x['ai_match_score'], reverse=True)
-
-        # 7. Serialize the final ranked list and return the response.
         serializer = PotentialCandidateSerializer(sorted_candidates, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -841,32 +832,7 @@ class EmployerDashboardAPIView(APIView):
     def get(self, request):
         dashboard_data = {}
 
-        # --- 1. Top Matched Candidates ---
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT skills, current_city, email 
-                FROM gatep_platform_db.talent_management_resume 
-                LIMIT 5
-            """)
-            candidates = cursor.fetchall()
-        
-        dashboard_data['top_matched_candidates'] = [
-            {
-                'skills': row[0],
-                'location': row[1],
-                'email': row[2]
-            } for row in candidates
-        ]
-
-        # --- 2. Active Jobs Count ---
-        with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT COUNT(*) 
-                FROM gatep_platform_db.employer_management_jobposting
-            """)
-            dashboard_data['active_jobs'] = cursor.fetchone()[0]
-
-        # --- 3. Total Applicants with 'applied' status ---
+        # --- 1. Total Applicants with 'applied' status ---
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT COUNT(*) 
@@ -875,7 +841,7 @@ class EmployerDashboardAPIView(APIView):
             """)
             dashboard_data['total_applicants'] = cursor.fetchone()[0]
 
-        # --- 4. Interviews Scheduled ---
+        # --- 2. Interviews Scheduled ---
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT COUNT(*) 
@@ -884,9 +850,79 @@ class EmployerDashboardAPIView(APIView):
             """)
             dashboard_data['interview_scheduled'] = cursor.fetchone()[0]
 
-        # --- 5. Offer Extended (No table) ---
-        dashboard_data['offer_extended'] = 0  # Placeholder
+        # --- 3. Active Jobs where is_active = 1 ---
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM gatep_platform_db.employer_management_jobposting 
+                WHERE is_active = 1
+            """)
+            dashboard_data['active_jobs'] = cursor.fetchone()[0]
+
+        # --- 4. Offer Extended (Placeholder) ---
+        dashboard_data['offer_extended'] = 0  # Update when logic is available
 
         return Response(dashboard_data)
+
+
+
+class EmployerAnalyticsDemographicAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+ 
+    def get(self, request):
+        data = {}
+ 
+        # --- Step 1: Fetch all unique required_skills from JobPosting ---
+        all_skills_set = set()
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT DISTINCT required_skills
+                FROM gatep_platform_db.employer_management_jobposting
+                WHERE required_skills IS NOT NULL AND required_skills != ''
+            """)
+            skill_rows = cursor.fetchall()
+ 
+        for row in skill_rows:
+            raw = row[0]
+            if raw:
+                # Try to extract quoted skills (JSON-like), else fallback to comma-split
+                skills = re.findall(r'"([^"]+)"', raw) or raw.split(',')
+                all_skills_set.update(skill.strip().lower() for skill in skills if skill.strip())
+ 
+        # --- Step 2: Count how many times each skill appears in Resume.skills ---
+        skill_distribution = []
+        with connection.cursor() as cursor:
+            for skill in sorted(all_skills_set):
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM gatep_platform_db.talent_management_resume
+                    WHERE LOWER(skills) LIKE %s
+                """, [f"%{skill}%"])
+                count = cursor.fetchone()[0]
+                skill_distribution.append({
+                    "skill": skill,
+                    "count": count
+                })
+ 
+        data["skill_distribution"] = skill_distribution
+ 
+        # --- Step 3: Candidate location counts ---
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT current_district, COUNT(*)
+                FROM gatep_platform_db.talent_management_resume
+                WHERE current_district IS NOT NULL AND current_district != ''
+                GROUP BY current_district
+            """)
+            location_rows = cursor.fetchall()
+ 
+        candidate_locations = [
+            {"location": row[0], "candidates": row[1]}
+            for row in location_rows
+        ]
+ 
+        data["candidate_locations"] = candidate_locations
+ 
+        return Response(data)
     
 ###################### nikita's code end ##############################
