@@ -29,7 +29,7 @@ class CustomUser(AbstractUser):
 
     otp = models.CharField(max_length=6, blank=True, null=True)
     otp_created_at = models.DateTimeField(blank=True, null=True)
-    phone_number = models.CharField(max_length=20, blank=True, null=True, unique=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
 
     def generate_otp(self):
         self.otp = ''.join(random.choices(string.digits, k=6))
@@ -477,3 +477,20 @@ class MockInterviewResult(models.Model):
 
 
 ############################### interview bot models end ########################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -208,7 +208,12 @@ class CareerRoadmapRequestSerializer(serializers.Serializer):
     experience_years = serializers.FloatField()
     interests = serializers.CharField()
     target_roles = serializers.ListField(child=serializers.CharField())
-
+    
+class RoleListSerializer(serializers.Serializer):
+    selected_roles = serializers.ListField(
+        child=serializers.CharField(),
+        allow_empty=False
+    )
  
 class SkillGapAnalysisRequestSerializer(serializers.Serializer):
     selected_roles = serializers.ListField(child=serializers.CharField())
@@ -243,3 +248,7 @@ class MockInterviewResultSerializer(serializers.ModelSerializer):
             'technical_specialization_scores', 'pre_generated_questions_data',
             'full_qa_transcript', 'round_analysis_json', 'status', 'created_at', 'updated_at'
         ]
+
+
+
+

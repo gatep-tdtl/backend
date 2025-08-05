@@ -51,9 +51,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         if CustomUser.objects.filter(email=data['email']).exists():
             raise serializers.ValidationError({"email": "A user with that email already exists."})
 
-        # Check for phone number uniqueness only if it's provided and not blank
-        if data.get('phone_number') and CustomUser.objects.filter(phone_number=data['phone_number']).exists():
-            raise serializers.ValidationError({"phone_number": "A user with that phone number already exists."})
 
         return data
 
@@ -68,6 +65,16 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Password must contain at least one digit.")
         if not re.search(r'[!@#$%^&*()_+\-=\[\]{};:\'",.<>/?`~]', value):
             raise serializers.ValidationError("Password must contain at least one special character.")
+        return value
+
+    def validate_phone_number(self, value):
+    # This validation runs only if a phone number is provided.
+        if value:
+            # Remove any non-digit characters for clean validation
+            cleaned_value = re.sub(r'\D', '', value)
+            if not cleaned_value.isdigit() or len(cleaned_value) != 10:
+                raise serializers.ValidationError("Phone number must be exactly 10 digits.")
+            return cleaned_value # Return the cleaned value
         return value
 
     # FIX 1: Wrap the entire creation process in a transaction

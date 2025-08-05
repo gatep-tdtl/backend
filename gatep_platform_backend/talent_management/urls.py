@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-    CulturalPreparationAPIView, MalpracticeDetectionView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView, TrendingSkillsListView )
+    CulturalPreparationAPIView, MalpracticeDetectionView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 
@@ -13,7 +13,7 @@ urlpatterns = [
     path('resume/skill-gap/', SkillGapAnalysisAPIView.as_view(), name='skill_gap_analysis'),
     path('resume/career-roadmap/', CareerRoadmapAPIView.as_view(), name='career_roadmap'),
 
-    path('trending-skills/', TrendingSkillsListView.as_view(), name='trending-skills-list'),
+    path('trending-skills/', RecommendedSkillsView.as_view(), name='trending-skills-list'),
     path('cultural-preparation/', CulturalPreparationAPIView.as_view(), name='cultural-preparation'),
     # 🔹 AI Salary Insight
     path('ai/salary-insights/', SalaryInsightsAPIView.as_view(), name='ai-salary-insights'),
