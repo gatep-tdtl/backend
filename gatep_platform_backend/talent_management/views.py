@@ -1533,7 +1533,7 @@ from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import status
-import whisper
+# import whisper
 from django.conf import settings
 
 
@@ -1561,11 +1561,11 @@ class AudioTranscriptionView(APIView):
             print("Saved file at:", file_path)
 
             # Transcribe
-            model = whisper.load_model("base")
-            result = model.transcribe(file_path)
-            transcription = result.get("text", "")
+            # model = whisper.load_model("base")
+            # result = model.transcribe(file_path)
+            # transcription = result.get("text", "")
 
-            return Response({"transcription": transcription}, status=status.HTTP_200_OK)
+            # return Response({"transcription": transcription}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
