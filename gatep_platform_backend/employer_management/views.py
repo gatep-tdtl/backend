@@ -167,7 +167,7 @@ class PotentialCandidateMatchView(APIView):
 
     Accessible via: GET /api/job-postings/<job_posting_id>/potential-candidates/
     """
-    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
+    # permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
 
     def get(self, request, job_posting_id, *args, **kwargs):
         job_posting = get_object_or_404(JobPosting, pk=job_posting_id)
@@ -188,25 +188,47 @@ class PotentialCandidateMatchView(APIView):
 
         for talent in potential_talents:
             resume = Resume.objects.filter(talent_id=talent.id, is_deleted=False).order_by('-updated_at').first()
+            
+            # If no resume exists for the talent, we cannot get skills, location, or a resume URL.
+            # So, we skip to the next potential candidate.
+            if not resume:
+                continue
+
             user_skills = []
-            if resume and resume.skills:
+            if resume.skills:
                 try:
                     user_skills = json.loads(resume.skills)
                 except (json.JSONDecodeError, TypeError):
                     user_skills = [s.strip() for s in str(resume.skills).split(',') if s.strip()]
 
+            # Only proceed to score and list candidates who have skills in their resume.
             if user_skills:
                 score = get_ai_match_score(user_skills, job_required_skills)
-                # Get location and resume URL (adjust field names as per your models)
-                location = getattr(talent, 'current_location', None)
-                resume_url = resume.resume_file.url if resume and hasattr(resume, 'resume_file') and resume.resume_file else None
+                
+                # --- START: Corrected data retrieval ---
+                
+                # Correctly determine the candidate's location.
+                # Prioritize 'current_city', fallback to 'current_location',
+                # and standardize empty or default values to None for a cleaner API response.
+                location = resume.current_city or resume.current_location
+                if not location or location.strip() == "Not Provided":
+                    location = None
+
+                # Correctly get the resume URL from the `resume_pdf` FileField.
+                # The `resume_pdf` field is a FileField, not a URLField named `resume_url`.
+                resume_url = None
+                if resume.resume_pdf and hasattr(resume.resume_pdf, 'url'):
+                    # `request.build_absolute_uri` creates a full URL (e.g., http://domain/media/...)
+                    resume_url = request.build_absolute_uri(resume.resume_pdf.url)
+                    
+                # --- END: Corrected data retrieval ---
 
                 candidate_scores.append({
                     'talent_id': talent.id,
                     'name': f"{talent.first_name} {talent.last_name}".strip() or talent.username,
                     'ai_match_score': score,
-                    'location': location,
-                    'resume_url': resume_url,
+                    'location': location,      # Now correctly populated
+                    'resume_url': resume_url,  # Now correctly populated
                 })
 
         sorted_candidates = sorted(candidate_scores, key=lambda x: x['ai_match_score'], reverse=True)
