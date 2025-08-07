@@ -31,7 +31,7 @@ class FullResumeSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(file_obj.url)
         return None
 
-    # --- URL fields for reading file locations ---
+    # --- URL fields for reading file locations (This part is correct) ---
     profile_photo_url = serializers.SerializerMethodField()
     resume_pdf_url = serializers.SerializerMethodField()
     tenth_result_upload_url = serializers.SerializerMethodField()
@@ -49,36 +49,38 @@ class FullResumeSerializer(serializers.ModelSerializer):
     def get_twelfth_result_upload_url(self, obj):
         return self.get_absolute_url(obj, 'twelfth_result_upload')
 
-    # --- Fields that are TextFields in the model but store JSON strings ---
-    skills = serializers.SerializerMethodField()
-    experience = serializers.SerializerMethodField()
-    projects = serializers.SerializerMethodField()
-    awards = serializers.SerializerMethodField()
-    publications = serializers.SerializerMethodField()
-    open_source_contributions = serializers.SerializerMethodField()
-    interests = serializers.SerializerMethodField()
-    references = serializers.SerializerMethodField()
+    # --- NEW: Custom JSON Field for TextFields storing JSON ---
+    # This will handle both serialization (reading from DB) and deserialization (writing to DB).
+    class TextFieldAsJSON(serializers.Field):
+        def to_representation(self, value):
+            if not value:
+                return []
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                # If it's not valid JSON, return it as a single-item list
+                return [value]
 
-    def get_json_from_textfield(self, obj, field_name, default_value=None):
-        json_string = getattr(obj, field_name, "")
-        if not json_string:
-            return default_value if default_value is not None else []
-        try:
-            return json.loads(json_string)
-        except (json.JSONDecodeError, TypeError):
-            return [json_string]
+        def to_internal_value(self, data):
+            # When receiving data from a request, serialize it to a JSON string
+            if not isinstance(data, (list, dict)):
+                self.fail('invalid')
+            return json.dumps(data)
 
-    def get_skills(self, obj): return self.get_json_from_textfield(obj, 'skills')
-    def get_experience(self, obj): return self.get_json_from_textfield(obj, 'experience')
-    def get_projects(self, obj): return self.get_json_from_textfield(obj, 'projects')
-    def get_awards(self, obj): return self.get_json_from_textfield(obj, 'awards')
-    def get_publications(self, obj): return self.get_json_from_textfield(obj, 'publications')
-    def get_open_source_contributions(self, obj): return self.get_json_from_textfield(obj, 'open_source_contributions')
-    def get_interests(self, obj): return self.get_json_from_textfield(obj, 'interests')
-    def get_references(self, obj): return self.get_json_from_textfield(obj, 'references')
+    # Apply the custom field to all TextFields that store JSON
+    skills = TextFieldAsJSON()
+    experience = TextFieldAsJSON()
+    projects = TextFieldAsJSON()
+    awards = TextFieldAsJSON()
+    publications = TextFieldAsJSON()
+    open_source_contributions = TextFieldAsJSON()
+    interests = TextFieldAsJSON()
+    references = TextFieldAsJSON()
 
     class Meta:
         model = Resume
+        # The fields list now includes all model fields we want to expose.
+        # The serializer will automatically handle native JSONFields and our custom TextFieldAsJSON.
         fields = [
             'id', 'talent_id',
             
@@ -89,27 +91,26 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'name', 'email', 'phone', 'profile_photo_url', 'resume_pdf_url',
             'current_company',
             
-            # Links (only the JSONField remains)
-            'professional_links',
-            
             # Summaries & Preferences
             'summary', 'generated_summary', 'generated_preferences',
             'preferred_location', 'preferred_tech_stack', 'dev_environment',
-            'work_preferences',
-
-            # Legal
-            'work_authorizations',
             
-            # TextFields containing JSON data
-            'skills', 'experience', 'projects', 'awards', 'publications',
-            'open_source_contributions', 'interests', 'references',
-            
-            # Other TextFields
+            # Other TextFields that are just strings
             'volunteering_experience', 'extracurriculars', 
             
-            # JSONFields
-            'languages', 'diploma_details', 'degree_details',
-            'certification_details', 'certification_photos',
+            # Native JSONFields (handled automatically by ModelSerializer)
+            'professional_links',
+            'work_preferences',
+            'work_authorizations',
+            'languages', 
+            'diploma_details', 
+            'degree_details', 
+            'certification_details', 
+            'certification_photos',
+            
+            # TextFields storing JSON (handled by our custom field above)
+            'skills', 'experience', 'projects', 'awards', 'publications',
+            'open_source_contributions', 'interests', 'references',
             
             # Address Details
             'current_area', 'permanent_area', 'current_city', 'permanent_city',
@@ -124,6 +125,7 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         
+        # Read-only fields are for output only, they cannot be written to.
         read_only_fields = [
             'id', 'talent_id', 'created_at', 'updated_at', 
             'profile_photo_url', 'resume_pdf_url', 'tenth_result_upload_url', 
@@ -131,18 +133,14 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'generated_summary', 'generated_preferences' 
         ]
         
+        # This part ensures that when you upload a file, the file data is used for writing,
+        # but it won't be included in the read response. The *_url fields are used instead.
         extra_kwargs = {
             'profile_photo': {'write_only': True, 'required': False, 'allow_null': True},
             'resume_pdf': {'write_only': True, 'required': False, 'allow_null': True},
             'tenth_result_upload': {'write_only': True, 'required': False, 'allow_null': True},
             'twelfth_result_upload': {'write_only': True, 'required': False, 'allow_null': True},
         }
-
-    def update(self, instance, validated_data):
-        for field_name in ['skills', 'experience', 'projects', 'awards', 'publications', 'interests', 'references', 'open_source_contributions']:
-            if field_name in validated_data and isinstance(validated_data[field_name], (list, dict)):
-                validated_data[field_name] = json.dumps(validated_data[field_name])
-        return super().update(instance, validated_data)
 
 # --- JobPostingSerializer (No changes needed) ---
 class CompanyNameSerializer(serializers.ModelSerializer):
