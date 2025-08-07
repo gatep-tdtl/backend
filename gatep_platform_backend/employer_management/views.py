@@ -167,7 +167,7 @@ class PotentialCandidateMatchView(APIView):
 
     Accessible via: GET /api/job-postings/<job_posting_id>/potential-candidates/
     """
-    # permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser, IsJobPostingOwner]
 
     def get(self, request, job_posting_id, *args, **kwargs):
         job_posting = get_object_or_404(JobPosting, pk=job_posting_id)

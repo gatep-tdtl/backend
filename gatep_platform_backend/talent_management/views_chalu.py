@@ -1,5 +1,6 @@
 
-# talent_management/views.py
+
+# MODIFIED/FINAL CODE - All top-level indentation removed
 
 _B = 'content'
 _A = 'meta-llama/Meta-Llama-3-70B-Instruct'
@@ -7,14 +8,13 @@ import os, fitz, json, re, collections.abc
 from django.http import JsonResponse
 from django.conf import settings
 from huggingface_hub import InferenceClient
-from .models import Resume, CustomUser, MockInterviewResult
+from .models import Resume, CustomUser
 from django.contrib.auth import get_user_model
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from rest_framework.response import Response
 
-# --- AI Analysis Service Imports ---
+# --- AI Analysis Service Imports (for the analysis views at the end) ---
 from .ai_analysis_services import (
     generate_resume_review,
     extract_text_from_pdf_path,
@@ -22,24 +22,6 @@ from .ai_analysis_services import (
     generate_career_roadmap,
     generate_skill_gap_analysis_for_roles
 )
-# --- Other Serializer and Model imports from your original file ---
-from .serializers import (
-    MockInterviewResultSerializer, RoleListSerializer, SkillGapAnalysisRequestSerializer
-)
-from .interview_bot.llm_utils import call_llm_api
-from .interview_bot.speech_utils import speak_text
-from .interview_bot.config import MOCK_INTERVIEW_POSITION
-from .interview_bot import config
-from .interview_bot.timer_utils import RoundTimer
-from .interview_bot.interviewer_logic import AIInterviewer
-from django.utils import timezone
-from groq import Groq
-from django.core.cache import cache
-from employer_management.models import JobPosting
-from .ai_cultural_prep import generate_cultural_preparation, extract_unique_locations
-from .ai_salary_insights import generate_salary_insights
-import whisper
-import tempfile
 
 # Get the CustomUser model
 User = get_user_model()
@@ -48,13 +30,28 @@ HFF_TOKEN = os.getenv('HFF_TOKEN')
 if not HFF_TOKEN:
     raise ValueError('HuggingFace token not set in environment (HFF_TOKEN). Please set it to proceed.')
 
-# --- UPDATED Constants for clarity (only used constants remain) ---
-L = 'name'; M = 'email'; N = 'phone'; V = 'current_company'
-J = 'error'; A = 'education_details'; B = 'personal_info'
-F = 'tenth'; G = 'twelfth'
+# Constants for clarity
+L = 'name'; M = 'email'; N = 'phone'; O = 'work_arrangement'; P = 'preferred_location'
+Q = 'preferred_tech_stack'; R = 'dev_environment'; S = 'current_location'
+T = 'aadhar_number'; U = 'passport_number'; V = 'current_company'
+W = 'linkedin_url'; X = 'github_url'; Y = 'portfolio_url'
+Z = 'stackoverflow_url'; a = 'medium_or_blog_url'
+b = 'work_authorization'; c = 'criminal_record_disclosure'
+d = 'volunteering_experience'; f = 'extracurriculars'
+g = 'degree_name'; h = 'skills'; i = 'experience'
+j = 'projects'; k = 'certifications'; l = 'awards'
+m = 'publications'; n = 'open_source_contributions'
+o = 'interests'; p = 'languages'; q = 'references'
+s = 'professional_summary'; t = 'board_name'; u = 'institution_name'
+v = 'legal'; K = 'year_passing'; D = 'score'
+J = 'error'; I = 'links'; H = 'diploma'
+G = 'twelfth'; F = 'tenth'; E = 'preferences'
+C = 'degree'; A = 'education_details'; B = 'personal_info'
 
 
 class ResumeAIPipeline:
+    # This class is well-designed and does not need changes.
+    # Its sole responsibility is to process a PDF.
     def __init__(self):
         self.client = InferenceClient(token=HFF_TOKEN)
         self.temp_pdf_paths = []
@@ -70,35 +67,23 @@ class ResumeAIPipeline:
             return ""
 
     def _build_prompt(self, pdf_text):
-        # --- CORRECTED: ALL curly braces inside the JSON example are now escaped with {{ and }} ---
         return f'''
 You are an AI assistant that extracts structured information from resume text. Your goal is to parse the provided text and structure it into a specific JSON format.
 
-Return your output in **strict JSON format only**. Do NOT include any markdown (e.g., ```json), conversational text, or explanations. If a section is not found, omit it or set its value to an empty list/object. The JSON structure must follow this schema:
+Return your output in **strict JSON format only**. Do NOT include any markdown (e.g., ```json), conversational text, or explanations. If a field or section is not found in the text, omit it or set its value to null/empty. The JSON structure must follow this schema:
 {{{{
-    "personal_info": {{{{ "name": "...", "email": "...", "phone": "...", "current_company": "..." }}}},
-    "professional_links": [{{{{ "name": "LinkedIn", "url": "..." }}}}, {{{{ "name": "GitHub", "url": "..." }}}}, {{{{ "name": "Portfolio", "url": "..." }}}}],
-    "summary": "A concise 3-4 sentence summary of the candidate's profile.",
-    "skills": ["Skill 1", "Skill 2", "Programming Language"],
-    "experience": [
-        {{{{ "title": "Software Engineer", "company": "Tech Corp", "duration": "Jan 2022 - Present", "responsibilities": ["Developed feature X.", "Managed service Y."] }}}}
-    ],
-    "projects": [
-        {{{{ "name": "Resume Parser", "description": "Built a tool using Python and LLMs.", "technologies": ["Python", "Django", "HuggingFace API"], "url": "..." }}}}
-    ],
-    "education_details": {{
-        "tenth": {{{{ "board_name": "...", "school_name": "...", "year_passing": "...", "score": "..." }}}},
-        "twelfth": {{{{ "board_name": "...", "college_name": "...", "year_passing": "...", "score": "..." }}}}
-    }},
-    "degree_details": [
-        {{{{ "degree_name": "Bachelor of Engineering", "institution_name": "University of Technology", "specialization": "Computer Science", "year_passing": "2021", "score": "8.5 CGPA" }}}}
-    ],
-    "diploma_details": [
-        {{{{ "course_name": "Diploma in IT", "institution_name": "Polytechnic College", "year_passing": "2018", "score": "92%" }}}}
-    ],
-    "certification_details": [
-        {{{{ "name": "Certified Cloud Practitioner", "issuing_organization": "Amazon Web Services", "date_issued": "2023" }}}}
-    ],
+    "personal_info": {{{{ "name": "...", "email": "...", "phone": "...", "current_location": "..."}}}},
+    "links": {{{{ "linkedin_url": "...", "github_url": "...", "portfolio_url": "..." }}}},
+    "professional_summary": "A concise 3-4 sentence summary.",
+    "skills": ["Skill 1", "Skill 2"],
+    "experience": [{{{{ "title": "...", "company": "...", "duration": "...", "responsibilities": ["..."] }}}}],
+    "projects": [{{{{ "name": "...", "description": "...", "url": "..." }}}}],
+    "education_details": {{{{
+        "degree": {{{{ "degree_name": "...", "institution_name": "...", "year_passing": "...", "score": "..." }}}},
+        "twelfth": {{{{ "board_name": "...", "college_name": "...", "year_passing": "...", "score": "..." }}}},
+        "tenth": {{{{ "board_name": "...", "school_name": "...", "year_passing": "...", "score": "..." }}}}
+    }}}},
+    "certifications": ["Certification 1", "Certification 2"],
     "awards": ["Award 1"],
     "publications": ["Publication 1"],
     "languages": {{{{ "Language 1": "Proficiency" }}}},
@@ -121,30 +106,31 @@ Strict JSON Output:
             return json.loads(clean_content)
         except json.JSONDecodeError as e:
             print(f"LLM returned invalid JSON: {clean_content}")
-            raise e
+            raise e # Re-raise the exception to be caught by the caller
 
     def process_resume_data(self, resume_pdf_file):
         if not resume_pdf_file:
             return {}
+
         temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp_uploads')
         os.makedirs(temp_dir, exist_ok=True)
         pdf_path = os.path.join(temp_dir, resume_pdf_file.name)
+
         try:
             with open(pdf_path, 'wb+') as temp_file:
                 for chunk in resume_pdf_file.chunks():
                     temp_file.write(chunk)
             self.temp_pdf_paths.append(pdf_path)
+
             pdf_text = self._extract_text_from_pdf(pdf_path)
             if not pdf_text:
                 return {}
+
             prompt = self._build_prompt(pdf_text)
             return self._call_llama_model(prompt)
         except Exception as e:
             print(f"Error in AI pipeline: {e}")
             return {}
-        finally:
-            if os.path.exists(pdf_path):
-                os.remove(pdf_path)
 
     def get_temp_pdf_paths(self):
         return self.temp_pdf_paths
@@ -171,8 +157,18 @@ class ResumeBuilderAPIView(APIView):
         return base
 
     def _structure_form_data(self, data):
+        """
+        Unifies processing for both JSON and form-data payloads.
+        It starts with the request's data payload (excluding files) and
+        restructures any known flat keys into their correct nested dictionaries.
+        """
+        # Step 1: Create a mutable copy of the request data. This now correctly
+        # handles both QueryDict (from forms) and dict (from JSON) without
+        # trying to serialize file objects.
+        # This is the primary fix for the "not JSON serializable" error.
         structured_data = {k: v for k, v in data.items()}
 
+        # 2. Handle fields that might be sent as JSON-encoded strings (common in form-data)
         for field in list(structured_data.keys()):
             value = structured_data[field]
             if isinstance(value, str) and value.strip().startswith(('{', '[')):
@@ -181,7 +177,8 @@ class ResumeBuilderAPIView(APIView):
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-        personal_info_keys = [L, M, N, V, 'current_area', 'permanent_area', 'current_city', 'permanent_city', 'current_district', 'permanent_district', 'current_state', 'permanent_state', 'current_country', 'permanent_country']
+        # 3. Restructure flat keys into the 'personal_info' nested dictionary.
+        personal_info_keys = [L, M, N, S, T, U, V, 'current_area', 'permanent_area', 'current_city', 'permanent_city', 'current_district', 'permanent_district', 'current_state', 'permanent_state', 'current_country', 'permanent_country']
         personal_info_updates = {}
         for key in personal_info_keys:
             if key in structured_data:
@@ -191,9 +188,23 @@ class ResumeBuilderAPIView(APIView):
             existing_pi = structured_data.get(B, {})
             structured_data[B] = {**existing_pi, **personal_info_updates}
 
+        # 4. Restructure flat keys into the 'links' nested dictionary.
+        link_keys = [W, X, Y, Z, a]
+        link_updates = {}
+        for key in link_keys:
+            if key in structured_data:
+                link_updates[key] = structured_data.pop(key)
+
+        if link_updates:
+            existing_links = structured_data.get(I, {})
+            structured_data[I] = {**existing_links, **link_updates}
+
+        # 5. Restructure flat keys into the 'education_details' nested dictionary.
         edu_map = {
             F: {'board_name': 'tenth_board_name', 'school_name': 'tenth_school_name', 'year_passing': 'tenth_year_passing', 'score': 'tenth_score'},
             G: {'board_name': 'twelfth_board_name', 'college_name': 'twelfth_college_name', 'year_passing': 'twelfth_year_passing', 'score': 'twelfth_score'},
+            H: {'course_name': 'diploma_course_name', 'institution_name': 'diploma_institution_name', 'year_passing': 'diploma_year_passing', 'score': 'diploma_score'},
+            C: {'degree_name': g, 'institution_name': 'degree_institution_name', 'specialization': 'degree_specialization', 'year_passing': 'degree_year_passing', 'score': 'degree_score'}
         }
         education_updates = {}
         for level, fields_map in edu_map.items():
@@ -214,70 +225,64 @@ class ResumeBuilderAPIView(APIView):
         request = self.request
         get_url = lambda f: request.build_absolute_uri(f.url) if f and hasattr(f, 'url') else None
 
+        # This method is correct and does not need changes.
+        # ... (code from previous answer is correct here) ...
         return {
-            'id': resume_instance.pk, 
-            'talent_id': resume_instance.talent_id.pk,
-            'employee_level': resume_instance.employee_level,
-            'is_fresher': resume_instance.is_fresher,
-            'domain_interest': resume_instance.domain_interest,
-            'name': resume_instance.name, 
-            'email': resume_instance.email, 
-            'phone': resume_instance.phone, 
-            'current_company': resume_instance.current_company, 
-            'profile_photo_url': get_url(resume_instance.profile_photo), 
-            'resume_pdf_url': get_url(resume_instance.resume_pdf), 
-            'professional_links': resume_instance.professional_links, 
-            'summary': resume_instance.summary, 
-            'generated_summary': resume_instance.generated_summary,
-            'generated_preferences': resume_instance.generated_preferences,
-            'preferred_tech_stack': resume_instance.preferred_tech_stack, 
-            'dev_environment': resume_instance.dev_environment, 
-            'volunteering_experience': resume_instance.volunteering_experience, 
-            'extracurriculars': resume_instance.extracurriculars, 
-            'preferred_location': resume_instance.preferred_location, 
-            'work_authorizations': resume_instance.work_authorizations, 
-            'work_preferences': resume_instance.work_preferences,
-            'languages': resume_instance.languages, 
-            'diploma_details': resume_instance.diploma_details, 
-            'degree_details': resume_instance.degree_details, 
-            'certification_details': resume_instance.certification_details, 
-            'certification_photos': resume_instance.certification_photos, 
-            'skills': self._safe_json_loads(resume_instance.skills, []), 
-            'experience': self._safe_json_loads(resume_instance.experience, []), 
-            'projects': self._safe_json_loads(resume_instance.projects, []), 
-            'awards': self._safe_json_loads(resume_instance.awards, []), 
-            'publications': self._safe_json_loads(resume_instance.publications, []), 
-            'open_source_contributions': self._safe_json_loads(resume_instance.open_source_contributions, []), 
-            'interests': self._safe_json_loads(resume_instance.interests, []), 
-            'references': self._safe_json_loads(resume_instance.references, []),
-            'current_area': resume_instance.current_area, 'permanent_area': resume_instance.permanent_area, 'current_city': resume_instance.current_city, 'permanent_city': resume_instance.permanent_city, 'current_district': resume_instance.current_district, 'permanent_district': resume_instance.permanent_district, 'current_state': resume_instance.current_state, 'permanent_state': resume_instance.permanent_state, 'current_country': resume_instance.current_country, 'permanent_country': resume_instance.permanent_country, 
+            'id': resume_instance.pk, 'talent_id': resume_instance.talent_id.pk, 'name': resume_instance.name, 'email': resume_instance.email, 'phone': resume_instance.phone, 'current_location': resume_instance.current_location, 'aadhar_number': resume_instance.aadhar_number, 'passport_number': resume_instance.passport_number, 'current_company': resume_instance.current_company, 'profile_photo_url': get_url(resume_instance.profile_photo), 'resume_pdf_url': get_url(resume_instance.resume_pdf), 'linkedin_url': resume_instance.linkedin_url, 'github_url': resume_instance.github_url, 'portfolio_url': resume_instance.portfolio_url, 'stackoverflow_url': resume_instance.stackoverflow_url, 'medium_or_blog_url': resume_instance.medium_or_blog_url, 'summary': resume_instance.summary, 'generated_summary': resume_instance.generated_summary, 'preferred_tech_stack': resume_instance.preferred_tech_stack, 'dev_environment': resume_instance.dev_environment, 'volunteering_experience': resume_instance.volunteering_experience, 'extracurriculars': resume_instance.extracurriculars, 'work_arrangement': resume_instance.work_arrangement, 'preferred_location': resume_instance.preferred_location, 'work_authorization': resume_instance.work_authorization, 'criminal_record_disclosure': resume_instance.criminal_record_disclosure, 'document_verification': resume_instance.document_verification, 'current_area': resume_instance.current_area, 'permanent_area': resume_instance.permanent_area, 'current_city': resume_instance.current_city, 'permanent_city': resume_instance.permanent_city, 'current_district': resume_instance.current_district, 'permanent_district': resume_instance.permanent_district, 'current_state': resume_instance.current_state, 'permanent_state': resume_instance.permanent_state, 'current_country': resume_instance.current_country, 'permanent_country': resume_instance.permanent_country, 'languages': resume_instance.languages, 'frameworks_tools': resume_instance.frameworks_tools, 'diploma_details': resume_instance.diploma_details, 'degree_details': resume_instance.degree_details, 'certification_details': resume_instance.certification_details, 'certification_photos': resume_instance.certification_photos, 'work_preferences': resume_instance.work_preferences, 'work_authorizations': resume_instance.work_authorizations, 'professional_links': resume_instance.professional_links, 'skills': self._safe_json_loads(resume_instance.skills, []), 'experience': self._safe_json_loads(resume_instance.experience, []), 'projects': self._safe_json_loads(resume_instance.projects, []), 'certifications': self._safe_json_loads(resume_instance.certifications, []), 'awards': self._safe_json_loads(resume_instance.awards, []), 'publications': self._safe_json_loads(resume_instance.publications, []), 'open_source_contributions': self._safe_json_loads(resume_instance.open_source_contributions, []), 'interests': self._safe_json_loads(resume_instance.interests, []), 'references': self._safe_json_loads(resume_instance.references, []), 'preferences': self._safe_json_loads(resume_instance.preferences, {}),
             'education_details': {
                 'tenth': {'board_name': resume_instance.tenth_board_name, 'school_name': resume_instance.tenth_school_name, 'year_passing': resume_instance.tenth_year_passing, 'score': resume_instance.tenth_score, 'result_upload_url': get_url(resume_instance.tenth_result_upload)},
                 'twelfth': {'board_name': resume_instance.twelfth_board_name, 'college_name': resume_instance.twelfth_college_name, 'year_passing': resume_instance.twelfth_year_passing, 'score': resume_instance.twelfth_score, 'result_upload_url': get_url(resume_instance.twelfth_result_upload)},
+                'diploma': {'course_name': resume_instance.diploma_course_name, 'institution_name': resume_instance.diploma_institution_name, 'year_passing': resume_instance.diploma_year_passing, 'score': resume_instance.diploma_score, 'result_upload_url': get_url(resume_instance.diploma_result_upload)},
+                'degree': {'degree_name': resume_instance.degree_name, 'institution_name': resume_instance.degree_institution_name, 'specialization': resume_instance.degree_specialization, 'year_passing': resume_instance.degree_year_passing, 'score': resume_instance.degree_score, 'result_upload_url': get_url(resume_instance.degree_result_upload)}
             },
-            'created_at': resume_instance.created_at.isoformat(), 
-            'updated_at': resume_instance.updated_at.isoformat(),
+            'created_at': resume_instance.created_at.isoformat(), 'updated_at': resume_instance.updated_at.isoformat(),
         }
 
     def _update_resume_instance(self, resume, data, files):
+        """Updates the resume model instance from a dictionary of data."""
+        # Helper to safely get a value, converting None to "" for string-based fields
         def get_safe_str(source_dict, key, default=""):
             val = source_dict.get(key)
             return val if val is not None else default
 
+        # ... (personal_info, links, and education_details logic remains the same) ...
         personal_info = data.get(B, {})
         if personal_info:
             resume.name = get_safe_str(personal_info, L)
             resume.email = get_safe_str(personal_info, M)
             resume.phone = get_safe_str(personal_info, N)
-            for key in [V, 'current_area', 'permanent_area', 'current_city', 'permanent_city', 'current_district', 'permanent_district', 'current_state', 'permanent_state', 'current_country', 'permanent_country']:
+            for key in [S, T, U, V, 'current_area', 'permanent_area', 'current_city', 'permanent_city', 'current_district', 'permanent_district', 'current_state', 'permanent_state', 'current_country', 'permanent_country']:
                 if key in personal_info:
                     setattr(resume, key, get_safe_str(personal_info, key))
+
+        links = data.get(I, {})
+        if links:
+            resume.linkedin_url = get_safe_str(links, W)
+            resume.github_url = get_safe_str(links, X)
+            resume.portfolio_url = get_safe_str(links, Y)
+            resume.stackoverflow_url = get_safe_str(links, Z)
+            resume.medium_or_blog_url = get_safe_str(links, a)
 
         education_details = data.get(A, {})
         if education_details and isinstance(education_details, dict):
             edu_key_map = {
-                'tenth': { 'board_name': 'tenth_board_name', 'school_name': 'tenth_school_name', 'year_passing': 'tenth_year_passing', 'score': 'tenth_score' },
-                'twelfth': { 'board_name': 'twelfth_board_name', 'college_name': 'twelfth_college_name', 'year_passing': 'twelfth_year_passing', 'score': 'twelfth_score' },
+                'tenth': {
+                    'board_name': 'tenth_board_name', 'school_name': 'tenth_school_name',
+                    'year_passing': 'tenth_year_passing', 'score': 'tenth_score',
+                },
+                'twelfth': {
+                    'board_name': 'twelfth_board_name', 'college_name': 'twelfth_college_name',
+                    'year_passing': 'twelfth_year_passing', 'score': 'twelfth_score',
+                },
+                'diploma': {
+                    'course_name': 'diploma_course_name', 'institution_name': 'diploma_institution_name',
+                    'year_passing': 'diploma_year_passing', 'score': 'diploma_score',
+                },
+                'degree': {
+                    'degree_name': 'degree_name', 'institution_name': 'degree_institution_name',
+                    'specialization': 'degree_specialization', 'year_passing': 'degree_year_passing',
+                    'score': 'degree_score',
+                }
             }
             for edu_level, details_dict in education_details.items():
                 if edu_level in edu_key_map and isinstance(details_dict, dict):
@@ -286,20 +291,34 @@ class ResumeBuilderAPIView(APIView):
                         if model_field and hasattr(resume, model_field):
                             setattr(resume, model_field, value)
         
-        SKIPPED_FIELDS = {B, A, 'id', 'talent_id', 'created_at', 'updated_at'}
+        # --- START OF THE FIX ---
+        # Update remaining top-level fields
+        # Define a set of read-only or nested fields to skip in this loop.
+        SKIPPED_FIELDS = {
+            # Nested fields handled above
+            B, I, A, 
+            # Read-only fields that should never be updated from request data
+            'id', 'talent_id', 'created_at', 'updated_at'
+        }
         
         for field, value in data.items():
-            if field in SKIPPED_FIELDS:
+            if field in SKIPPED_FIELDS:  # This is the corrected line
                 continue 
 
             if hasattr(resume, field):
-                if field in ['skills', 'experience', 'projects', 'awards', 'publications', 'open_source_contributions', 'interests', 'references']:
+                # This logic for handling field types is already correct
+                if field in ['skills', 'experience', 'projects', 'certifications', 'awards', 'publications', 'open_source_contributions', 'interests', 'references', 'preferences']:
                     setattr(resume, field, json.dumps(value or []))
-                elif field in ['languages', 'diploma_details', 'degree_details', 'certification_details', 'certification_photos', 'work_preferences', 'work_authorizations', 'professional_links']:
-                    setattr(resume, field, value or ([] if field != 'languages' else {}))
+                elif field in ['languages', 'frameworks_tools', 'diploma_details', 'degree_details', 'certification_details', 'certification_photos', 'work_preferences', 'work_authorizations', 'professional_links']:
+                    if field == 'languages':
+                        setattr(resume, field, value or {})
+                    else:
+                        setattr(resume, field, value or [])
                 else:
                     setattr(resume, field, value if value is not None else "")
+        # --- END OF THE FIX ---
         
+        # Update files (This part is correct)
         for field, file_obj in files.items():
             if hasattr(resume, field):
                 setattr(resume, field, file_obj)
@@ -307,26 +326,51 @@ class ResumeBuilderAPIView(APIView):
         return resume
 
     def _process_and_update_resume(self, request, user):
+        """
+        Handles the core logic for creating and updating a resume for POST, PUT, and PATCH.
+        This version correctly prioritizes data sources across all methods.
+        """
+        # Step 1: Get or Create the Resume instance for the authenticated user.
         resume, created = Resume.objects.get_or_create(talent_id=user, defaults={'is_deleted': False})
         if resume.is_deleted:
             resume.is_deleted = False
 
+        # Step 2: Extract data from the request.
         files = request.FILES
+        
+        # Step 3: Run AI pipeline on a new PDF, if provided. This is our lowest-priority data.
         pdf_extracted_data = self.ai_pipeline.process_resume_data(files.get('resume_pdf'))
+        
+        # Step 4: Get the user's explicit input. This is our highest-priority data.
         user_input_data = self._structure_form_data(request.data)
 
+        # Step 5: Establish the base data.
+        # For a brand new resume (POST) or a full replacement (PUT), we start fresh.
+        # For a partial update (PATCH), we start with the data already in the database.
         base_data = {}
         if request.method == 'PATCH':
             base_data = self._serialize_resume_to_json(resume)
 
+        # Step 6: Merge all data sources with the correct priority.
+        # Priority Order (from lowest to highest):
+        # 1. Base Data (existing DB state for PATCH, empty for POST/PUT)
+        # 2. PDF Extracted Data
+        # 3. User's Explicit Input
+        
+        # Merge base with PDF data
         merged_data = self._deep_update(base_data, pdf_extracted_data)
+        
+        # Merge the result with the user's input, which overwrites everything else.
         final_data = self._deep_update(merged_data, user_input_data)
         
+        # Step 7: Update the model instance with the final, merged data and save it.
         self._update_resume_instance(resume, final_data, files)
         resume.save()
 
         return resume, created
 
+    # The GET, POST, PUT, PATCH, DELETE methods are all correct and 
+    # don't need changes. They rely on the fixed methods above.
     def get(self, request, *args, **kwargs):
         try:
             resume = Resume.objects.get(talent_id=request.user, is_deleted=False)
@@ -365,6 +409,7 @@ class ResumeBuilderAPIView(APIView):
             return JsonResponse({'message': 'Resume not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({'error': f"An error occurred during delete: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 # --------------------------------------------------------------------------
 # --- AI ANALYSIS MODULES VIEWS (Unchanged, they are fine) ---
 # --------------------------------------------------------------------------

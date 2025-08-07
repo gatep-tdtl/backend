@@ -36,6 +36,8 @@ class FullResumeSerializer(serializers.ModelSerializer):
     resume_pdf_url = serializers.SerializerMethodField()
     tenth_result_upload_url = serializers.SerializerMethodField()
     twelfth_result_upload_url = serializers.SerializerMethodField()
+    diploma_result_upload_url = serializers.SerializerMethodField()
+    degree_result_upload_url = serializers.SerializerMethodField()
     
     def get_profile_photo_url(self, obj):
         return self.get_absolute_url(obj, 'profile_photo')
@@ -49,10 +51,18 @@ class FullResumeSerializer(serializers.ModelSerializer):
     def get_twelfth_result_upload_url(self, obj):
         return self.get_absolute_url(obj, 'twelfth_result_upload')
 
+    def get_diploma_result_upload_url(self, obj):
+        return self.get_absolute_url(obj, 'diploma_result_upload')
+
+    def get_degree_result_upload_url(self, obj):
+        return self.get_absolute_url(obj, 'degree_result_upload')
+
     # --- Fields that are TextFields in the model but store JSON strings ---
+    # We will use a custom method to deserialize them for GET requests.
     skills = serializers.SerializerMethodField()
     experience = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
+    certifications = serializers.SerializerMethodField()
     awards = serializers.SerializerMethodField()
     publications = serializers.SerializerMethodField()
     open_source_contributions = serializers.SerializerMethodField()
@@ -66,11 +76,12 @@ class FullResumeSerializer(serializers.ModelSerializer):
         try:
             return json.loads(json_string)
         except (json.JSONDecodeError, TypeError):
-            return [json_string]
+            return [json_string] # Return as list with the string if it's not valid JSON
 
     def get_skills(self, obj): return self.get_json_from_textfield(obj, 'skills')
     def get_experience(self, obj): return self.get_json_from_textfield(obj, 'experience')
     def get_projects(self, obj): return self.get_json_from_textfield(obj, 'projects')
+    def get_certifications(self, obj): return self.get_json_from_textfield(obj, 'certifications')
     def get_awards(self, obj): return self.get_json_from_textfield(obj, 'awards')
     def get_publications(self, obj): return self.get_json_from_textfield(obj, 'publications')
     def get_open_source_contributions(self, obj): return self.get_json_from_textfield(obj, 'open_source_contributions')
@@ -81,34 +92,32 @@ class FullResumeSerializer(serializers.ModelSerializer):
         model = Resume
         fields = [
             'id', 'talent_id',
-            
-            # New Fields
-            'employee_level', 'is_fresher', 'domain_interest',
-
-            # Personal Info
+            # Personal Info (URL fields replace raw file fields in output)
             'name', 'email', 'phone', 'profile_photo_url', 'resume_pdf_url',
-            'current_company',
+            'current_location', 'aadhar_number', 'passport_number', 'current_company',
             
-            # Links (only the JSONField remains)
+            # Links (now includes the new JSONField for professional_links)
+            'linkedin_url', 'github_url', 'portfolio_url', 'stackoverflow_url', 'medium_or_blog_url',
             'professional_links',
             
             # Summaries & Preferences
-            'summary', 'generated_summary', 'generated_preferences',
-            'preferred_location', 'preferred_tech_stack', 'dev_environment',
-            'work_preferences',
+            'summary', 'generated_summary', 'preferences', 'generated_preferences',
+            'work_arrangement', 'preferred_location', 'preferred_tech_stack', 'dev_environment',
+            'work_preferences', # <-- New JSONField for preferences
 
-            # Legal
-            'work_authorizations',
+            # Legal & Verification
+            'work_authorization', 'criminal_record_disclosure', 'document_verification',
+            'work_authorizations', # <-- New JSONField for authorizations
             
-            # TextFields containing JSON data
-            'skills', 'experience', 'projects', 'awards', 'publications',
+            # TextFields containing JSON data (handled by SerializerMethodFields above)
+            'skills', 'experience', 'projects', 'certifications', 'awards', 'publications',
             'open_source_contributions', 'interests', 'references',
             
             # Other TextFields
             'volunteering_experience', 'extracurriculars', 
             
-            # JSONFields
-            'languages', 'diploma_details', 'degree_details',
+            # JSONFields (handled directly)
+            'languages', 'frameworks_tools', 'diploma_details', 'degree_details',
             'certification_details', 'certification_photos',
             
             # Address Details
@@ -116,30 +125,41 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'current_district', 'permanent_district', 'current_state', 'permanent_state',
             'current_country', 'permanent_country',
 
-            # Education
+            # Education (URL fields replace raw file fields in output)
             'tenth_board_name', 'tenth_school_name', 'tenth_year_passing', 'tenth_score', 'tenth_result_upload_url',
             'twelfth_board_name', 'twelfth_college_name', 'twelfth_year_passing', 'twelfth_score', 'twelfth_result_upload_url',
+            'diploma_course_name', 'diploma_institution_name', 'diploma_year_passing', 'diploma_score', 'diploma_result_upload_url',
+            'degree_name', 'degree_institution_name', 'degree_specialization', 'degree_year_passing', 'degree_score', 'degree_result_upload_url',
             
             # Timestamps
             'created_at', 'updated_at',
         ]
         
+        # All fields that aren't for input should be read_only
         read_only_fields = [
             'id', 'talent_id', 'created_at', 'updated_at', 
             'profile_photo_url', 'resume_pdf_url', 'tenth_result_upload_url', 
-            'twelfth_result_upload_url',
-            'generated_summary', 'generated_preferences' 
+            'twelfth_result_upload_url', 'diploma_result_upload_url', 'degree_result_upload_url',
+            'document_verification', 'generated_summary', 'generated_preferences' 
         ]
         
+        # --- IMPORTANT: Make file upload fields write-only ---
+        # This allows them to be used for input (POST/PUT) but they won't be part of the GET response.
+        # The *_url fields are used for the GET response instead.
         extra_kwargs = {
             'profile_photo': {'write_only': True, 'required': False, 'allow_null': True},
             'resume_pdf': {'write_only': True, 'required': False, 'allow_null': True},
             'tenth_result_upload': {'write_only': True, 'required': False, 'allow_null': True},
             'twelfth_result_upload': {'write_only': True, 'required': False, 'allow_null': True},
+            'diploma_result_upload': {'write_only': True, 'required': False, 'allow_null': True},
+            'degree_result_upload': {'write_only': True, 'required': False, 'allow_null': True},
         }
 
     def update(self, instance, validated_data):
-        for field_name in ['skills', 'experience', 'projects', 'awards', 'publications', 'interests', 'references', 'open_source_contributions']:
+        # This handles converting incoming list/dict data for TextField-based JSON storage
+        # This logic is now mostly handled in the view, but it's good practice to have it here
+        # for other potential uses of the serializer.
+        for field_name in ['skills', 'experience', 'projects', 'certifications', 'awards', 'publications', 'interests', 'references', 'open_source_contributions']:
             if field_name in validated_data and isinstance(validated_data[field_name], (list, dict)):
                 validated_data[field_name] = json.dumps(validated_data[field_name])
         return super().update(instance, validated_data)

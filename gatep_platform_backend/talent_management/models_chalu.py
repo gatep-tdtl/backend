@@ -126,17 +126,7 @@ class DocumentVerificationStatus(models.TextChoices):
     NOT_APPLICABLE = 'NOT_APPLICABLE', _('Not Applicable')
 
 
-class EmployeeLevelChoices(models.TextChoices):
-    FRESHER = 'FRESHER', _('Fresher')
-    INTERN = 'INTERN', _('Intern')
-    EXPERIENCED = 'EXPERIENCED', _('Experienced')
-
-class DomainInterestChoices(models.TextChoices):
-    AI_ML_ENGINEER = 'AI_ML_ENGINEER', _('AI/ML Engineer')
-    DATA_SCIENTIST = 'DATA_SCIENTIST', _('Data Scientist')
-    BUSINESS_ANALYST = 'BUSINESS_ANALYST', _('Business Analyst')
-    
-# --- REPLACEMENT FOR THE ENTIRE RESUME MODEL ---
+# --- RESUME ---
 class Resume(models.Model):
     # Core personal info
     name = models.CharField(max_length=255)
@@ -144,61 +134,68 @@ class Resume(models.Model):
     phone = models.CharField(max_length=20)
     talent_id = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='resumes', blank=True, null=True)
     
-    # Files
+    # Profile Photo field (already correct)
     profile_photo = models.ImageField(upload_to='profile_photos/', blank=True, null=True)
     resume_pdf = models.FileField(upload_to='resumes/', blank=True, null=True)
+
+    # Links
+    linkedin_url = models.URLField(blank=True, default="")
+    github_url = models.URLField(blank=True, default="")
+    portfolio_url = models.URLField(blank=True, default="")
+    stackoverflow_url = models.URLField(blank=True, default="")
+    medium_or_blog_url = models.URLField(blank=True, default="")
+
+    frameworks_tools = models.JSONField(blank=True, default=list, verbose_name="Frameworks & Tools")
 
     # Summaries & Preferences 
     summary = models.TextField(blank=True, default="")
     generated_summary = models.TextField(blank=True, default="")
-    generated_preferences = models.TextField(blank=True, default="")
+    preferences = models.TextField(blank=True, default="")
     
-    # Career Preferences
+    work_arrangement = models.CharField( # <--- UPDATED TO DROPDOWN
+        max_length=50,
+        choices=WorkArrangementChoices.choices,
+        blank=True,
+        null=True, # Allowing null if not specified by user
+        verbose_name=_('Preferred Work Arrangement')
+    )
     preferred_location = models.CharField(max_length=100, blank=True, default="")
     preferred_tech_stack = models.TextField(blank=True, default="")
     dev_environment = models.TextField(blank=True, default="")
+    
+    current_location = models.CharField(max_length=100, blank=True, default="Not Provided")
+    aadhar_number = models.CharField(max_length=12, blank=True, default="Not Provided")
+    passport_number = models.CharField(max_length=20, blank=True, default="Not Provided")
     current_company = models.CharField(max_length=100, blank=True, default="Not Provided")
 
-    # --- NEW FIELDS ---
-    employee_level = models.CharField(
+    # Legal & Verification
+    work_authorization = models.TextField(blank=True, default="")
+    criminal_record_disclosure = models.TextField(blank=True, default="")
+    document_verification = models.CharField( # <--- UPDATED TO DROPDOWN
         max_length=50,
-        choices=EmployeeLevelChoices.choices,
-        blank=True,
-        null=True,
-        verbose_name=_('Employee Level')
+        choices=DocumentVerificationStatus.choices,
+        default=DocumentVerificationStatus.INCOMPLETE,
+        verbose_name=_('Document Verification Status')
     )
-    is_fresher = models.BooleanField(default=False, verbose_name=_('Is Fresher'))
-    domain_interest = models.CharField(
-        max_length=50,
-        choices=DomainInterestChoices.choices,
-        blank=True,
-        null=True,
-        verbose_name=_('Domain of Interest')
-    )
+    generated_preferences = models.TextField(blank=True, default="")
 
-    # List-based fields (Stored as JSON strings in TextField)
+    # List-based fields (Stored as JSON strings in TextField) - For these, if you want dropdowns, you'd usually have a separate model or a fixed set of choices. For now, they remain TextField.
     references = models.TextField(blank=True, default="")
     awards = models.TextField(blank=True, default="")
     publications = models.TextField(blank=True, default="")
     open_source_contributions = models.TextField(blank=True, default="")
     volunteering_experience = models.TextField(blank=True, default="")
     extracurriculars = models.TextField(blank=True, default="")
+
     skills = models.TextField(blank=True, default="")
     experience = models.TextField(blank=True, default="")
     projects = models.TextField(blank=True, default="")
+    certifications = models.TextField(blank=True, default="")
     interests = models.TextField(blank=True, default="")
-    
-    # JSONFields (Native JSON storage)
-    languages = models.JSONField(blank=True, default=dict)
-    diploma_details = models.JSONField(blank=True, default=list, verbose_name="Diploma Details")
-    degree_details = models.JSONField(blank=True, default=list, verbose_name="Degree Details")
-    certification_details = models.JSONField(blank=True, default=list, verbose_name="Certification Details")
-    certification_photos = models.JSONField(blank=True, default=list, verbose_name="Certification Photos")
-    work_preferences = models.JSONField(blank=True, default=list, verbose_name="Work Preferences")
-    work_authorizations = models.JSONField(blank=True, default=list, verbose_name="Work Authorizations")
-    professional_links = models.JSONField(blank=True, default=list, verbose_name="Professional Links")
 
-    # --- EDUCATION FIELDS (ONLY 10th and 12th) ---
+    languages = models.JSONField(blank=True, default=dict) # Kept as JSONField
+
+    # --- EDUCATION FIELDS (INDIVIDUAL FIELDS AND FILE UPLOADS) ---
     # 10th Boards
     tenth_board_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('10th Board Name'))
     tenth_school_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('10th School Name'))
@@ -213,12 +210,28 @@ class Resume(models.Model):
     twelfth_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('12th Score/Grade'))
     twelfth_result_upload = models.FileField(upload_to='education_results/12th/', blank=True, null=True, verbose_name=_('12th Result Upload'))
 
-    # Timestamps & Soft Delete
+    # Diploma
+    diploma_course_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Course Name'))
+    diploma_institution_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Institution Name'))
+    diploma_year_passing = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Year Passing'))
+    diploma_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Diploma Score/Grade'))
+    diploma_result_upload = models.FileField(upload_to='education_results/diploma/', blank=True, null=True, verbose_name=_('Diploma Result Upload'))
+
+    # Degree (e.g., Bachelor's, Master's, Ph.D.)
+    degree_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Name'))
+    degree_institution_name = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Institution Name'))
+    degree_specialization = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Specialization'))
+    degree_year_passing = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Year Passing'))
+    degree_score = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Degree Score/Grade'))
+    degree_result_upload = models.FileField(upload_to='education_results/degree/', blank=True, null=True, verbose_name=_('Degree Result Upload'))
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Soft Delete Field
     is_deleted = models.BooleanField(default=False)
 
-    # Address Details
+
+
     current_area = models.CharField(max_length=255, blank=True, default="")
     permanent_area = models.CharField(max_length=255, blank=True, default="")
     current_city = models.CharField(max_length=100, blank=True, default="")
@@ -229,7 +242,23 @@ class Resume(models.Model):
     permanent_state = models.CharField(max_length=100, blank=True, default="")
     current_country = models.CharField(max_length=100, blank=True, default="")
     permanent_country = models.CharField(max_length=100, blank=True, default="")
-    
+
+    # Diploma and Degree details (multiple)
+    diploma_details = models.JSONField(blank=True, default=list, verbose_name="Diploma Details")
+    degree_details = models.JSONField(blank=True, default=list, verbose_name="Degree Details")
+
+    # Certification details (multiple, with photos)
+    certification_details = models.JSONField(blank=True, default=list, verbose_name="Certification Details")
+    certification_photos = models.JSONField(blank=True, default=list, verbose_name="Certification Photos")
+
+    # Work preference (multiple)
+    work_preferences = models.JSONField(blank=True, default=list, verbose_name="Work Preferences")
+
+    # Work authorization (multiple)
+    work_authorizations = models.JSONField(blank=True, default=list, verbose_name="Work Authorizations")
+
+    # Professional links (multiple)
+    professional_links = models.JSONField(blank=True, default=list, verbose_name="Professional Links")
     def __str__(self):
         return f"{self.name} ({self.email})"
 
