@@ -20,23 +20,129 @@ from .serializers import (
 from auth_management import serializers
 
 # Register View
-class RegisterView(generics.CreateAPIView):
-    queryset = CustomUser.objects.all()
-    serializer_class = RegisterSerializer
+import jwt
+import random
+import string
+from datetime import datetime, timedelta
+from django.utils import timezone
+from django.contrib.auth.hashers import make_password
+from django.db import transaction
+from rest_framework.serializers import ValidationError
+from rest_framework import generics, status, permissions
+# ... other imports from your file
 
-    def create(self, request, *args, **kwargs):
+# --- HELPER FUNCTIONS FOR THE REGISTRATION TOKEN ---
+# You should store this secret in your Django settings.py and NOT hardcode it.
+REGISTRATION_SECRET_KEY = settings.SECRET_KEY + "-registration"
+
+def create_registration_token(payload):
+    """Creates a short-lived JWT for registration data."""
+    # Add expiration time (e.g., 5 minutes)
+    payload['exp'] = datetime.utcnow() + timedelta(minutes=5)
+    payload['iat'] = datetime.utcnow()
+    
+    token = jwt.encode(payload, REGISTRATION_SECRET_KEY, algorithm="HS256")
+    return token
+
+def decode_registration_token(token):
+    """Decodes the registration token, checking for expiration."""
+    try:
+        payload = jwt.decode(token, REGISTRATION_SECRET_KEY, algorithms=["HS256"])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise ValidationError("The verification link has expired. Please register again.", code='token_expired')
+    except jwt.InvalidTokenError:
+        raise ValidationError("Invalid verification link.", code='invalid_token')
+
+# --- MODIFIED VIEWS ---
+
+class RegisterView(generics.GenericAPIView):
+    serializer_class = RegisterSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        response_data = {
-            "message": "User registered. Please check your email for OTP verification.",
-            "username": serializer.data['username'],
-            "email": serializer.data['email'],
-            "phone_number": serializer.data.get('phone_number'),
-            "user_role": serializer.data.get('user_role')
+        validated_data = serializer.validated_data
+
+        # Prepare the data for the token payload
+        otp = ''.join(random.choices(string.digits, k=6))
+        
+        token_payload = {
+            'username': validated_data['username'],
+            'email': validated_data['email'],
+            'password': make_password(validated_data['password']), # Hash password BEFORE putting in token
+            'phone_number': validated_data.get('phone_number'),
+            'first_name': validated_data.get('first_name', ''),
+            'last_name': validated_data.get('last_name', ''),
+            'user_role': validated_data['user_role'],
+            'otp': otp
         }
-        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+
+        # Create the short-lived token
+        registration_token = create_registration_token(token_payload)
+
+        # Send the email with the OTP
+        subject = 'Complete Your Registration'
+        message = f'Hi {validated_data["username"]},\n\nYour OTP to complete registration is: {otp}'
+        try:
+            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [validated_data['email']])
+        except Exception as e:
+            # Handle email sending failure
+            return Response({"error": "Failed to send verification email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            "message": "OTP sent. Please use the provided token and OTP to verify your account.",
+            "registration_token": registration_token
+        }, status=status.HTTP_200_OK)
+
+
+class VerifyRegistrationView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        token = request.data.get('registration_token')
+        otp_submitted = request.data.get('otp')
+
+        if not token or not otp_submitted:
+            return Response({"error": "Token and OTP are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            payload = decode_registration_token(token)
+        except serializers.ValidationError as e:
+            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if payload.get('otp') != otp_submitted:
+            return Response({"error": "Invalid OTP."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # If OTP is correct, create the user
+        try:
+            # We don't need the OTP anymore
+            payload.pop('otp', None)
+            payload.pop('exp', None)
+            payload.pop('iat', None)
+            
+            with transaction.atomic():
+                user_role = payload.pop('user_role')
+                user = CustomUser.objects.create_user(
+                    **payload,
+                    user_role=user_role,
+                    is_active=True # Verified!
+                )
+                
+                # Create associated profile
+                if user_role == UserRole.TALENT:
+                    from talent_management.models import TalentProfile
+                    TalentProfile.objects.create(user=user)
+                elif user_role == UserRole.EMPLOYER:
+                    from talent_management.models import EmployerProfile
+                    EmployerProfile.objects.create(user=user)
+
+        except Exception as e:
+             # Catches potential race condition if user was created just now
+            return Response({"error": "User with this username or email may already exist."}, status=status.HTTP_409_CONFLICT)
+            
+        return Response({"message": "Registration successful! You can now log in."}, status=status.HTTP_201_CREATED)
 
 # Login View
 class LoginView(generics.GenericAPIView):
