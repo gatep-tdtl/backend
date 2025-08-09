@@ -71,7 +71,7 @@ class RegisterView(generics.GenericAPIView):
         token_payload = {
             'username': validated_data['username'],
             'email': validated_data['email'],
-            'password': make_password(validated_data['password']), # Hash password BEFORE putting in token
+            'password': validated_data['password'], # <-- Keep it as plain-text
             'phone_number': validated_data.get('phone_number'),
             'first_name': validated_data.get('first_name', ''),
             'last_name': validated_data.get('last_name', ''),

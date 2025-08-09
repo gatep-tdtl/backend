@@ -192,6 +192,7 @@ class Resume(models.Model):
     languages = models.JSONField(blank=True, default=dict)
     diploma_details = models.JSONField(blank=True, default=list, verbose_name="Diploma Details")
     degree_details = models.JSONField(blank=True, default=list, verbose_name="Degree Details")
+    post_graduate_details = models.JSONField(blank=True, default=list, verbose_name="Post-Graduate Details")
     certification_details = models.JSONField(blank=True, default=list, verbose_name="Certification Details")
     certification_photos = models.JSONField(blank=True, default=list, verbose_name="Certification Photos")
     work_preferences = models.JSONField(blank=True, default=list, verbose_name="Work Preferences")

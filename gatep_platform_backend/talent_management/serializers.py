@@ -105,6 +105,7 @@ class FullResumeSerializer(serializers.ModelSerializer):
             'languages', 
             'diploma_details', 
             'degree_details', 
+            'post_graduate_details',
             'certification_details', 
             'certification_photos',
             

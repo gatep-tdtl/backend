@@ -76,7 +76,7 @@ class VerifyRegistrationSerializer(serializers.Serializer):
         # This serializer's main job is to ensure the fields are present and correctly formatted.
         return data
 
-
+from django.db.models import Q
 # FIX 2: Changed from 'phone_or_email' to 'username_or_email'
 class LoginSerializer(serializers.Serializer):
     username_or_email = serializers.CharField(required=True)
@@ -85,32 +85,41 @@ class LoginSerializer(serializers.Serializer):
     def validate(self, data):
         username_or_email = data.get('username_or_email')
         password = data.get('password')
-
         user = None
-        if username_or_email and password:
-            # First, try to authenticate with the input as a username
-            user = authenticate(username=username_or_email, password=password)
 
-            # If that fails and it's an email, try to find the user by email
-            # and then authenticate with their actual username.
-            if not user and '@' in username_or_email:
-                try:
-                    user_by_email = CustomUser.objects.get(email=username_or_email)
-                    user = authenticate(username=user_by_email.username, password=password)
-                except CustomUser.DoesNotExist:
-                    pass # We will raise the 'Invalid credentials' error below
-
-            # Final validation checks
-            if not user:
-                raise serializers.ValidationError('Invalid credentials.')
-            
-            if user.user_role not in [UserRole.TALENT.value, UserRole.EMPLOYER.value, UserRole.ADMIN.value]:
-                raise serializers.ValidationError('User role is invalid or not recognized.')
-
-            if not user.is_active:
-                raise serializers.ValidationError('Account not verified. Please verify your email.')
-        else:
+        if not username_or_email or not password:
             raise serializers.ValidationError('Must include "username_or_email" and "password".')
+        
+        # --- NEW, MORE ROBUST LOGIC ---
+        # 1. Find the user by either username or email in one query.
+        try:
+            # Use Q object for an OR query and iexact for case-insensitivity
+            user_obj = CustomUser.objects.get(
+                Q(username__iexact=username_or_email) | 
+                Q(email__iexact=username_or_email)
+            )
+        except CustomUser.DoesNotExist:
+            # If the user doesn't exist at all, we raise the error.
+            raise serializers.ValidationError("Invalid credentials.", code='authorization')
+
+        # 2. If the user object was found, *then* try to authenticate.
+        #    We must use the user's actual username for the authenticate function.
+        if user_obj:
+            user = authenticate(username=user_obj.username, password=password)
+
+        # 3. Final checks.
+        # If user is None here, it means the user exists but the password was wrong.
+        if not user:
+            raise serializers.ValidationError("Invalid credentials.", code='authorization')
+        
+        if not user.is_active:
+            raise serializers.ValidationError("Account not verified. Please verify your email.", code='inactive')
+        
+        # The user role check is good to keep
+        if user.user_role not in [UserRole.TALENT.value, UserRole.EMPLOYER.value, UserRole.ADMIN.value]:
+            raise serializers.ValidationError("User role is invalid or not recognized.")
+        
+        # --- END OF NEW LOGIC ---
 
         data['user'] = user
         return data

@@ -4,7 +4,7 @@ from talent_management.views import (
      AudioTranscriptionView, CulturalPreparationAPIView, MalpracticeDetectionView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
-
+from talent_management import views
 urlpatterns = [
     # 🔹 Resume Builder
     path('resume-builder/', ResumeBuilderAPIView.as_view(), name='resume-builder'),
@@ -12,6 +12,7 @@ urlpatterns = [
     path('resume/review/', ResumeReviewAPIView.as_view(), name='resume_review'),
     path('resume/skill-gap/', SkillGapAnalysisAPIView.as_view(), name='skill_gap_analysis'),
     path('resume/career-roadmap/', CareerRoadmapAPIView.as_view(), name='career_roadmap'),
+    path("upload-cert-photo/", views.upload_certification_photo, name="upload_cert_photo"),
 
     path('trending-skills/', RecommendedSkillsView.as_view(), name='trending-skills-list'),
     path('cultural-preparation/', CulturalPreparationAPIView.as_view(), name='cultural-preparation'),

@@ -96,6 +96,9 @@ Return your output in **strict JSON format only**. Do NOT include any markdown (
     "diploma_details": [
         {{{{ "course_name": "Diploma in IT", "institution_name": "Polytechnic College", "year_passing": "2018", "score": "92%" }}}}
     ],
+     "post_graduate_details": [
+        {{{{ "degree_name": "Master of Technology", "institution_name": "Advanced Institute of Science", "specialization": "Artificial Intelligence", "year_passing": "2023", "score": "9.1 CGPA" }}}}
+    ],
     "certification_details": [
         {{{{ "name": "Certified Cloud Practitioner", "issuing_organization": "Amazon Web Services", "date_issued": "2023" }}}}
     ],
@@ -240,6 +243,7 @@ class ResumeBuilderAPIView(APIView):
             'languages': resume_instance.languages, 
             'diploma_details': resume_instance.diploma_details, 
             'degree_details': resume_instance.degree_details, 
+            'post_graduate_details': resume_instance.post_graduate_details,
             'certification_details': resume_instance.certification_details, 
             'certification_photos': resume_instance.certification_photos, 
             'skills': self._safe_json_loads(resume_instance.skills, []), 
@@ -295,7 +299,7 @@ class ResumeBuilderAPIView(APIView):
             if hasattr(resume, field):
                 if field in ['skills', 'experience', 'projects', 'awards', 'publications', 'open_source_contributions', 'interests', 'references']:
                     setattr(resume, field, json.dumps(value or []))
-                elif field in ['languages', 'diploma_details', 'degree_details', 'certification_details', 'certification_photos', 'work_preferences', 'work_authorizations', 'professional_links']:
+                elif field in ['languages', 'diploma_details', 'degree_details', 'certification_details', 'certification_photos', 'work_preferences', 'work_authorizations', 'professional_links','post_graduate_details']:
                     setattr(resume, field, value or ([] if field != 'languages' else {}))
                 else:
                     setattr(resume, field, value if value is not None else "")
@@ -365,6 +369,43 @@ class ResumeBuilderAPIView(APIView):
             return JsonResponse({'message': 'Resume not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({'error': f"An error occurred during delete: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+from rest_framework.decorators import api_view, authentication_classes, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.authentication import BasicAuthentication
+from rest_framework.response import Response
+from django.core.files.storage import default_storage
+from django.conf import settings
+import os, uuid
+
+
+@api_view(['POST'])
+@authentication_classes([])  # Disable default SessionAuthentication
+@permission_classes([AllowAny])
+def upload_certification_photo(request):
+    if request.method == "POST" and request.FILES.get("photo"):
+        photo = request.FILES["photo"]
+        
+        # Get file extension
+        ext = os.path.splitext(photo.name)[1]
+        
+        # Generate unique filename
+        filename = f"{uuid.uuid4().hex}{ext}"
+        
+        # Save file
+        file_path = os.path.join("certifications", filename)
+        saved_path = default_storage.save(file_path, photo)
+        
+        # Build file URL
+        file_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
+        
+        return JsonResponse({"url": file_url})
+    
+    return JsonResponse({"error": "No photo uploaded"}, status=400)
+
+    
 # --------------------------------------------------------------------------
 # --- AI ANALYSIS MODULES VIEWS (Unchanged, they are fine) ---
 # --------------------------------------------------------------------------
