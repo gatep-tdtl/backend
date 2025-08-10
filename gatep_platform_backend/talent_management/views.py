@@ -217,6 +217,18 @@ class ResumeBuilderAPIView(APIView):
         request = self.request
         get_url = lambda f: request.build_absolute_uri(f.url) if f and hasattr(f, 'url') else None
 
+        def transform_certifications(cert_list):
+            if not cert_list:
+                return []
+            transformed = []
+            for cert in cert_list:
+                transformed.append({
+                    **cert,
+                    "photo_urls": [request.build_absolute_uri(settings.BASE_MEDIA_URL + path) if path else None
+                                for path in cert.get("photo_urls", [])]
+                })
+            return transformed
+
         return {
             'id': resume_instance.pk, 
             'talent_id': resume_instance.talent_id.pk,
@@ -244,7 +256,7 @@ class ResumeBuilderAPIView(APIView):
             'diploma_details': resume_instance.diploma_details, 
             'degree_details': resume_instance.degree_details, 
             'post_graduate_details': resume_instance.post_graduate_details,
-            'certification_details': resume_instance.certification_details, 
+            'certification_details': transform_certifications(resume_instance.certification_details), 
             'certification_photos': resume_instance.certification_photos, 
             'skills': self._safe_json_loads(resume_instance.skills, []), 
             'experience': self._safe_json_loads(resume_instance.experience, []), 
@@ -399,9 +411,9 @@ def upload_certification_photo(request):
         saved_path = default_storage.save(file_path, photo)
         
         # Build file URL
-        file_url = request.build_absolute_uri(settings.MEDIA_URL + saved_path)
+        file_url = request.build_absolute_uri(settings.BASE_MEDIA_URL + saved_path)
         
-        return JsonResponse({"url": file_url})
+        return JsonResponse({"url": saved_path})
     
     return JsonResponse({"error": "No photo uploaded"}, status=400)
 

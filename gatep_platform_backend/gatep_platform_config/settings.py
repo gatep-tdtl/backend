@@ -213,6 +213,8 @@ SIMPLE_JWT = {
 
 # Media files (for uploads like resume PDFs)
 MEDIA_URL = '/media/'
+# BASE_MEDIA_URL = 'https://tdtlworld.com/backend/media/'
+BASE_MEDIA_URL = 'http://127.0.1:8000/media/'  # Change to your actual media URL in production
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # CORS_ALLOW_ALL_ORIGINS = True
