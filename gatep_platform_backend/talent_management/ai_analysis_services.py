@@ -41,38 +41,37 @@ def extract_text_from_pdf_path(file_path):
         return ""
 
 # --- Module 1: AI Resume Review ---
-def generate_resume_review(resume_text, target_role):
-    """Generates an ATS-style review for a given resume text."""
+def generate_resume_review(resume_profile_text, target_role):
+    """Generates an ATS-style review for a given resume profile text."""
     prompt = f"""
-You are an expert ATS resume reviewer. Your analysis is critical and direct.
-If the resume has bad formatting, emojis, missing keywords, or messy sections, you MUST force the ATS_Compatibility score below 30.
-Only give a score above 70 if it's exceptionally professional, quantifiable, and perfectly ATS-optimized for the target role.
+You are an expert ATS resume reviewer and career coach. Your analysis is critical, direct, and actionable.
+Analyze the provided candidate profile against the requirements for the target role.
 
 Generate a JSON object with the following structure:
 {{
   "ATS_Compatibility": {{
-    "score": "A number from 0-100",
-    "top_issues": ["List of the most critical issues affecting the score"],
-    "quick_tips": ["Actionable tips to fix the issues"]
+    "score": "A number from 0-100. Score harshly. A score above 70 should be reserved for exceptionally well-structured, quantifiable, and keyword-rich profiles.",
+    "top_issues": ["List the most critical issues affecting the score, such as vague descriptions, lack of metrics, or missing keywords."],
+    "quick_tips": ["Actionable tips to fix the issues and improve the score."]
   }},
   "Content_Quality_Analysis": {{
-    "summary": "A brief, critical summary of the resume's content quality.",
-    "top_strengths": ["List of the strongest parts of the resume"],
-    "improvement_areas": ["List of areas needing significant improvement"]
+    "summary": "A brief, critical summary of the profile's content quality, focusing on impact and clarity.",
+    "top_strengths": ["List the strongest parts of the profile (e.g., strong project descriptions, clear career progression)."],
+    "improvement_areas": ["List areas needing significant improvement (e.g., 'Work Experience needs more quantifiable achievements', 'Summary is too generic')."]
   }},
   "Keyword_Optimization": {{
-    "missing_keywords": ["Crucial keywords for the target role that are missing"]
+    "missing_keywords": ["List crucial keywords and technologies for the '{target_role}' role that are missing or underrepresented in the profile."]
   }},
   "Format_and_Structure_Review": {{
-    "format_score": "A number from 0-100 based on readability and ATS-friendliness",
-    "missing_sections": ["Standard sections that are missing (e.g., 'Projects', 'Skills')"],
-    "quick_suggestions": ["Tips for improving the layout and structure"]
+    "format_score": "A number from 0-100 based on readability, clarity, and logical flow.",
+    "missing_sections": ["Standard sections that are missing or weak (e.g., 'Projects', 'Skills', 'Certifications')."],
+    "quick_suggestions": ["Tips for improving the structure (e.g., 'Move the Skills section higher', 'Use bullet points for responsibilities')."]
   }}
 }}
 
 ---
-Resume Text:
-{resume_text}
+Candidate Profile Text:
+{resume_profile_text}
 
 Target Role: {target_role}
 ---
@@ -195,7 +194,6 @@ def generate_multiple_roadmaps(
 ):
     if target_roles is None:
         target_roles = []
-
     try:
         years = float(experience_years or 0)
     except (TypeError, ValueError):
@@ -203,7 +201,6 @@ def generate_multiple_roadmaps(
     years = max(0.0, years)
 
     results = {}
-
     for role_target in target_roles:
         fresher_guidance = ""
         if years == 0:
@@ -214,7 +211,6 @@ def generate_multiple_roadmaps(
 - Emphasize the importance of a strong portfolio and personal branding (e.g., LinkedIn, GitHub, Kaggle) to demonstrate capability in the absence of work history.
 - Avoid recommending mid-senior level roles or actions that assume prior professional experience.
 """
-
         prompt = f"""
 You are a professional career advisor with deep industry knowledge across multiple domains.
 Generate a comprehensive and realistic personalized career roadmap for an individual aspiring to become a **{role_target}**. The roadmap must be structured in the exact JSON format below.
@@ -256,7 +252,6 @@ Guidelines:
 
 {fresher_guidance}
 """.strip()
-
         try:
             res = client.chat.completions.create(
                 model=MODEL_NAME,
@@ -268,6 +263,7 @@ Guidelines:
             )
             response_text = res.choices[0].message.content.strip()
 
+            # Try direct JSON parse, with a fallback to regex extraction
             try:
                 parsed = json.loads(response_text)
                 results[role_target] = parsed
@@ -282,7 +278,6 @@ Guidelines:
                     results[role_target] = {"error": "No JSON found"}
         except Exception as e:
             results[role_target] = {"error": str(e)}
-
     return results
 
 
@@ -370,3 +365,204 @@ def generate_skill_gap_analysis_for_roles(
         analysis = generate_skill_gap_for_role(resume_skills, role, job_text)
         result[role] = analysis
     return result
+
+
+
+
+    ############# ai salary insights model below #############33
+    import os
+import re
+import time
+import json
+import logging
+from groq import Groq
+
+# Use the Django-managed Groq client from your existing services if possible,
+# or initialize it here. It will automatically use the GROQ_API_KEY from .env
+try:
+    client = Groq()
+    MODEL_NAME = "llama3-70b-8192" # Use a more powerful model for complex JSON
+except Exception as e:
+    raise Exception("GROQ_API_KEY not found or invalid. Please set it in your .env file.")
+
+# ----- Logging Setup -----
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# ----- LLM Call with Retry and Sanitizing -----
+def _call_llm(prompt, retries=3):
+    """
+    Internal helper to call the LLM with retry logic and JSON cleaning.
+    """
+    for attempt in range(retries):
+        try:
+            response = client.chat.completions.create(
+                model=MODEL_NAME, # Use the more capable model
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                response_format={"type": "json_object"} # Use JSON mode for reliability
+            )
+            raw_content = response.choices[0].message.content.strip()
+            
+            # JSON mode is reliable, but we keep a fallback just in case
+            try:
+                # Direct parsing, as JSON mode should guarantee a valid object string
+                parsed = json.loads(raw_content)
+                return raw_content # Return the raw string for the caller to parse
+            except json.JSONDecodeError:
+                logging.warning(f"JSON mode response was not valid JSON on attempt {attempt + 1}. Fallback parsing...")
+                match = re.search(r'\{.*\}', raw_content, re.DOTALL)
+                if match:
+                    return match.group(0)
+                else:
+                    logging.error(f"Could not find any JSON in the response: {raw_content}")
+                    continue
+       
+        except Exception as e:
+            logging.error(f"Groq API Error or other exception on attempt {attempt + 1}: {e}")
+            time.sleep(5 + (2 ** attempt))
+           
+    logging.critical("All retry attempts failed. Could not get valid JSON from LLM.")
+    return None # Return None on failure
+
+# ----- STEP 1: Dynamic Location to Currency Mapping -----
+def _map_locations_to_currencies(locations):
+    locations_str = ", ".join(f'"{loc}"' for loc in locations)
+    prompt = (
+        f"For the following list of locations [{locations_str}], provide their primary 3-letter currency code (ISO 4217). "
+        "Return a single JSON object where keys are the locations and values are the currency codes. "
+        "For example, for 'USA', the value should be 'USD'. For 'Mumbai', it should be 'INR'. For 'EU', use 'EUR'."
+        "Your response must be only the JSON object."
+    )
+    logging.info("Step 1: Mapping locations to currency codes...")
+    json_string = _call_llm(prompt)
+    if not json_string: return None
+    try:
+        currency_map = json.loads(json_string)
+        logging.info(f"Successfully mapped currencies: {currency_map}")
+        return currency_map
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse location-currency map from LLM: {e}")
+        return None
+
+# ----- STEP 2: Dynamic Currency Rates Fetcher -----
+def _fetch_currency_rates_with_llm(currency_codes):
+    if not currency_codes: return {}
+    codes_to_fetch = [code for code in currency_codes if code != "INR"]
+    if not codes_to_fetch: return {"INR": 1.0}
+    codes_str = ", ".join(codes_to_fetch)
+    prompt = (
+        f"Provide the current exchange rates for the following currency codes against INR: {codes_str}. "
+        "Return a JSON object with currency codes as keys and exchange rates (float) as values. "
+        "Your response must be only the JSON object."
+    )
+    logging.info(f"Step 2: Fetching exchange rates for {codes_str}...")
+    json_string = _call_llm(prompt)
+    if not json_string: return {}
+    try:
+        rates = json.loads(json_string)
+        rates["INR"] = 1.0
+        logging.info(f"Successfully fetched rates: {rates}")
+        return rates
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse currency rates from LLM: {e}")
+        return {}
+
+# ----- Universal Salary Parser -----
+def _extract_currency_and_value(salary_str):
+    if not isinstance(salary_str, str): return None, None
+    # Enhanced regex to handle various formats
+    match = re.search(r'([$€₹£¥]|S\$|CA\$|[A-Z]{3})?\s*([\d,.]+)\s*([KkMm]?)', salary_str.strip())
+    if match:
+        symbol_or_code, value_str, suffix = match.groups()
+        value = float(value_str.replace(',', ''))
+        multiplier = 1000 if suffix and suffix.lower() == 'k' else 1_000_000 if suffix and suffix.lower() == 'm' else 1
+        return (symbol_or_code.strip() if symbol_or_code else None), value * multiplier
+    return None, None
+
+def _convert_to_inr(salary_str, location, location_currency_map, currency_rates):
+    if not salary_str: return "N/A"
+    symbol_or_code, amount = _extract_currency_and_value(salary_str)
+    if amount is None: return "Invalid Format"
+    
+    # Determine currency code: explicit > location-based
+    final_code = symbol_or_code if symbol_or_code else location_currency_map.get(location)
+    
+    if not final_code or final_code not in currency_rates:
+        return f"Rate for '{final_code or 'Unknown'}' Unavailable"
+        
+    inr_value = amount * currency_rates.get(final_code, 0)
+    return f"₹{inr_value:,.0f} (≈ {inr_value / 1_00_000:.2f} LPA)"
+
+# ----- Main Data Fetcher -----
+def _fetch_all_consolidated_data(main_roles, countries_list):
+    roles_str = ", ".join(f"'{role}'" for role in main_roles)
+    countries_str = ", ".join(countries_list)
+    prompt = f"""
+    You are a senior IT recruitment consultant and salary expert with deep knowledge of global compensation trends for 2024.
+    Your task is to provide ACCURATE and REALISTIC salary and career information for professionals with **3-5 years of experience**.
+ 
+    CRITICAL INSTRUCTION: Your generated salaries must be realistic. For example, a "Data Scientist" in "Banglore" should be in the range of ₹20LPA to ₹40LPA. A similar role in the "USA" should be around $120K to $180K. Reflect these market realities. Pay close attention to high-demand fields like "AI Engineer" in major tech hubs.
+ 
+    Your entire response must be a single, complete, and valid JSON object.
+ 
+    Generate a JSON object with keys for each of the following professional fields: [{roles_str}].
+    For each field, create an object with these keys:
+    - "sub_roles": an array of 5 common sub-roles.
+    - "location_salary": an object where keys are countries from [{countries_str}] and values are objects with "average_salary".
+    - "negotiation_tips": an array of 3-4 salary negotiation tips.
+    - "market_trends": an array of 3-4 current market trends.
+ 
+    Format all salary values with the correct currency symbol or 3-letter code and units (e.g., '$150K', '£90K', '₹2.5M'). Use snake_case for keys.
+    """
+    logging.info("Step 3: Fetching all consolidated salary and career data...")
+    json_string = _call_llm(prompt)
+    if not json_string: return None
+    try:
+        data = json.loads(json_string)
+        logging.info("Successfully fetched and parsed consolidated data.")
+        return data
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse consolidated JSON: {e}.")
+        return None
+
+# ----- Main Orchestration Function - THIS IS THE ONE YOU WILL IMPORT -----
+def generate_salary_insights(roles, countries):
+    """
+    The main public function to generate salary insights for given roles and countries.
+    This function will be called by the API view.
+    """
+    location_currency_map = _map_locations_to_currencies(countries)
+    if not location_currency_map: return None
+    
+    required_codes = list(set(location_currency_map.values()))
+    currency_rates = _fetch_currency_rates_with_llm(required_codes)
+    if not currency_rates: return None
+    
+    consolidated_data_all_roles = _fetch_all_consolidated_data(roles, countries)
+    if not consolidated_data_all_roles: return None
+ 
+    logging.info("Step 4: Processing and converting all salary data...")
+    final_results = {}
+    
+    for main_role, role_data in consolidated_data_all_roles.items():
+        if main_role not in roles: continue # Ensure we only process requested roles
+        
+        # Process location-based salaries for the main role
+        location_salaries = {}
+        for location in countries:
+            salary_str = role_data.get("location_salary", {}).get(location, {}).get("average_salary")
+            location_salaries[location] = {
+                "average_salary_local": salary_str or "N/A",
+                "average_salary_inr": _convert_to_inr(salary_str, location, location_currency_map, currency_rates)
+            }
+            
+        final_results[main_role] = {
+            "sub_roles": role_data.get("sub_roles", []),
+            "location_based_salaries": location_salaries,
+            "negotiation_tips": role_data.get("negotiation_tips", []),
+            "market_trends": role_data.get("market_trends", [])
+        }
+
+    logging.info("Salary insight analysis complete.")
+    return final_results
+#################ai salary insights model above #########################

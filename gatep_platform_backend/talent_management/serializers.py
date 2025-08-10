@@ -231,3 +231,18 @@ class MockInterviewResultSerializer(serializers.ModelSerializer):
 
 
 
+class ResumeReviewRequestSerializer(serializers.Serializer):
+    target_roles = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        allow_empty=False,
+        min_length=1
+    )
+
+
+
+class CareerRoadmapRequestSerializer(serializers.Serializer):
+    target_roles = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        allow_empty=False,
+        min_length=1
+    )

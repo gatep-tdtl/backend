@@ -16,6 +16,7 @@ from rest_framework.response import Response
 
 # --- AI Analysis Service Imports ---
 from .ai_analysis_services import (
+    generate_multiple_roadmaps,
     generate_resume_review,
     extract_text_from_pdf_path,
     generate_skill_gap_analysis,
@@ -24,7 +25,7 @@ from .ai_analysis_services import (
 )
 # --- Other Serializer and Model imports from your original file ---
 from .serializers import (
-    MockInterviewResultSerializer, RoleListSerializer, SkillGapAnalysisRequestSerializer
+    CareerRoadmapRequestSerializer, MockInterviewResultSerializer, RoleListSerializer, SkillGapAnalysisRequestSerializer
 )
 from .interview_bot.llm_utils import call_llm_api
 from .interview_bot.speech_utils import speak_text
@@ -421,26 +422,87 @@ def upload_certification_photo(request):
 # --------------------------------------------------------------------------
 # --- AI ANALYSIS MODULES VIEWS (Unchanged, they are fine) ---
 # --------------------------------------------------------------------------
+from .serializers import ResumeReviewRequestSerializer
 class ResumeReviewAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    def get(self, request, *args, **kwargs):
+
+    def post(self, request, *args, **kwargs):
+        # 1. Validate the incoming request data
+        serializer = ResumeReviewRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
         user = request.user
-        target_role = request.query_params.get('target_role', 'AI Engineer')
+        target_roles = serializer.validated_data['target_roles']
+        
         try:
+            # 2. Fetch the user's resume data from the database
             resume = Resume.objects.get(talent_id=user, is_deleted=False)
-            if not resume.resume_pdf or not resume.resume_pdf.path:
-                return JsonResponse({'error': 'No resume PDF found. Please upload a resume first.'}, status=status.HTTP_404_NOT_FOUND)
 
-            if not os.path.exists(resume.resume_pdf.path):
-                return JsonResponse({'error': 'Resume file is missing from storage. Please re-upload.'}, status=status.HTTP_404_NOT_FOUND)
+            # Helper to safely load JSON from a TextField
+            def safe_load_json(json_string, default_value=None):
+                if default_value is None:
+                    default_value = []
+                if not json_string:
+                    return default_value
+                try:
+                    return json.loads(json_string)
+                except (json.JSONDecodeError, TypeError):
+                    return default_value
 
-            resume_text = extract_text_from_pdf_path(resume.resume_pdf.path)
-            review_result = generate_resume_review(resume_text, target_role)
-            return JsonResponse(review_result, status=status.HTTP_200_OK)
+            # 3. Construct the comprehensive profile text from the resume model
+            summary = resume.summary or "No summary provided."
+            skills_list = safe_load_json(resume.skills)
+            experience_list = safe_load_json(resume.experience)
+            projects_list = safe_load_json(resume.projects)
+            degree_list = resume.degree_details or []
+
+            # Build the text block once
+            resume_profile_text = f"## Professional Summary\n{summary}\n\n"
+            if skills_list:
+                resume_profile_text += f"## Skills\n- {', '.join(skills_list)}\n\n"
+            if experience_list:
+                resume_profile_text += "## Work Experience\n"
+                for exp in experience_list:
+                    title = exp.get('title', 'N/A')
+                    company = exp.get('company', 'N/A')
+                    duration = exp.get('duration', 'N/A')
+                    responsibilities = exp.get('responsibilities', [])
+                    resp_str = " ".join(responsibilities) if isinstance(responsibilities, list) else str(responsibilities)
+                    resume_profile_text += f"- **{title}** at {company} ({duration})\n  - {resp_str}\n"
+                resume_profile_text += "\n"
+            if projects_list:
+                resume_profile_text += "## Projects\n"
+                for proj in projects_list:
+                    name = proj.get('name', 'N/A')
+                    description = proj.get('description', 'N/A')
+                    tech_list = proj.get('technologies', [])
+                    tech_str = ', '.join(tech_list) if isinstance(tech_list, list) else str(tech_list)
+                    resume_profile_text += f"- **{name}**: {description} (Technologies: {tech_str})\n"
+                resume_profile_text += "\n"
+            if degree_list:
+                resume_profile_text += "## Education\n"
+                for degree in degree_list:
+                    degree_name = degree.get('degree_name', 'N/A')
+                    institution = degree.get('institution_name', 'N/A')
+                    year = degree.get('year_passing', 'N/A')
+                    resume_profile_text += f"- {degree_name} from {institution}, passed in {year}\n"
+
+            # 4. Generate a review for each target role
+            all_reviews = {}
+            for role in target_roles:
+                # Call the AI service for the current role
+                review_result = generate_resume_review(resume_profile_text.strip(), role)
+                all_reviews[role] = review_result
+
+            return Response(all_reviews, status=status.HTTP_200_OK)
+
         except Resume.DoesNotExist:
-            return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Resume profile not found for this user. Please create one first.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print(f"Error in ResumeReviewAPIView: {e}")
+            return Response({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 
 class SkillGapAnalysisAPIView(APIView):
     def post(self, request):
@@ -505,44 +567,59 @@ class SkillGapAnalysisAPIView(APIView):
 
 class CareerRoadmapAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    def _safe_json_loads(self, data, default=None):
-        """
-        Safely loads a JSON string.
-        Returns the default value if the data is None, empty, or not valid JSON.
-        """
-        # If the data from the DB is already a Python object (e.g., from a JSONField),
-        # no need to parse it.
-        if isinstance(data, (list, dict)):
-            return data
-            
-        if data is None or data == '':
-            return default if default is not None else []
+
+    def post(self, request, *args, **kwargs):
+        serializer = CareerRoadmapRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            return json.loads(data)
-        except (json.JSONDecodeError, TypeError):
-            # Return the default value if parsing fails
-            return default if default is not None else []
-    def get(self, request, *args, **kwargs):
         user = request.user
+        target_roles = serializer.validated_data['target_roles']
+
         try:
             resume = Resume.objects.get(talent_id=user, is_deleted=False)
-            experience = self._safe_json_loads(resume.experience, [])
-            interests = self._safe_json_loads(resume.interests, ["Not specified"])
-            skills = self._safe_json_loads(resume.skills, [])
+            
+            # Helper to safely load JSON from TextField
+            def safe_load_json(json_string, default_value=None):
+                if default_value is None:
+                    default_value = []
+                if not json_string:
+                    return default_value
+                try:
+                    return json.loads(json_string)
+                except (json.JSONDecodeError, TypeError):
+                    return default_value if default_value is not None else []
+            
+            # --- Extract user data from the resume model ---
+            experience = safe_load_json(resume.experience)
+            interests_list = safe_load_json(resume.interests, ["Not specified"])
+            
+            current_role_str = "Fresher / Entry-level candidate"
+            experience_years_num = 0
 
-            if not experience:
-                return JsonResponse({'error': 'No work experience found. Add it to generate a roadmap.'}, status=status.HTTP_400_BAD_REQUEST)
+            if experience:
+                # Use the most recent job title
+                current_role_str = experience[0].get('title', 'Not specified')
+                # A simple estimation of experience years
+                experience_years_num = len(experience) * 1.5 
+            
+            interests_str = ", ".join(interests_list)
 
-            current_role = experience[0].get('title', 'Not specified')
-            experience_years = len(experience) * 1.5
+            # --- Call the AI service with the user's data ---
+            roadmaps = generate_multiple_roadmaps(
+                current_role=current_role_str,
+                experience_years=experience_years_num,
+                interests=interests_str,
+                target_roles=target_roles
+            )
 
-            roadmap_result = generate_career_roadmap(current_role, experience_years, interests, skills)
-            return JsonResponse(roadmap_result, status=status.HTTP_200_OK)
+            return Response(roadmaps, status=status.HTTP_200_OK)
+
         except Resume.DoesNotExist:
-            return JsonResponse({'error': 'Resume profile not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Resume profile not found. Please create one to generate a roadmap.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            return JsonResponse({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            print(f"Error in CareerRoadmapAPIView: {e}")
+            return Response({'error': f'An internal server error occurred: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ... your other views like TrendingSkillsListView ...
 from groq import Groq
@@ -685,60 +762,70 @@ class CulturalPreparationAPIView(APIView):
 
 from .ai_salary_insights import generate_salary_insights
 from rest_framework.response import Response # Use DRF's Response for APIViews
-
+from django.core.cache import cache
+import logging
 
 class SalaryInsightsAPIView(APIView):
     """
     Provides AI-generated salary insights for key global tech hubs and roles.
     
-    This view uses caching to minimize expensive API calls to the Groq model,
-    returning fresh data once every 24 hours.
+    This view dynamically fetches locations from the JobPosting model and uses
+    caching to minimize expensive API calls, returning fresh data once every 24 hours.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        # Define a unique key for the cache
-        cache_key = 'ai_salary_insights_data'
+        # 1. Fetch unique, non-empty locations from the JobPosting model
+        # .values_list('location', flat=True) is efficient for getting a single column
+        # .distinct() makes the database do the work of finding unique values
+        db_locations = JobPosting.objects.exclude(location__isnull=True).exclude(location__exact='').values_list('location', flat=True).distinct()
         
-        # 1. Try to get the data from the cache first
+        # The extract_unique_locations function is great for cleaning and deduplicating
+        unique_locations = extract_unique_locations(list(db_locations))
+
+        # Add a default list of locations in case the database has none yet
+        if not unique_locations:
+            unique_locations = ["USA", "UK", "Canada", "UAE", "Singapore", "Mumbai", "Banglore"]
+
+        # 2. Define a dynamic cache key based on the sorted locations
+        # This ensures that if the locations in the DB change, a new cache entry is created.
+        sorted_locations_str = "_".join(sorted(unique_locations))
+        cache_key = f'ai_salary_insights_{sorted_locations_str}'
+        
+        # 3. Try to get the data from the cache first
         cached_insights = cache.get(cache_key)
         if cached_insights:
-            print("Serving salary insights from CACHE.") # Or use logger.info
+            print(f"Serving salary insights from CACHE for key: {cache_key}")
             return Response(cached_insights, status=status.HTTP_200_OK)
             
-        # 2. If not in cache, call the AI service
-        print("Cache miss. Calling AI service for salary insights...")
+        # 4. If not in cache, call the AI service
+        print(f"Cache miss for '{cache_key}'. Calling AI service for new salary insights...")
         
-        # Define the parameters for the AI model
-        cities = ["UAE", "USA", "EU", "Singapore"]
-        roles = [
-            "Data Scientist", "Machine Learning Engineer", "AI Engineer", 
-            "Data Analyst", "AI Research Scientist", "Computer Vision Engineer", 
-            "NLP Engineer", "ML Ops Engineer", "Generative AI Developer"
-        ]
+        # Define the roles
+        roles = ["AI Engineer", "Data Scientist", "Business Analyst"]
 
         try:
-            insights = generate_salary_insights(cities, roles)
+            # Pass the dynamically fetched locations to the service function
+            insights = generate_salary_insights(roles, unique_locations)
             
             if insights is None:
                 return Response(
-                    {"error": "Failed to generate salary insights. The AI service may be down or returned an invalid format."},
+                    {"error": "Failed to generate salary insights. The AI service may be down or returned invalid data."},
                     status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
             
-            # 3. Save the new data to the cache for 24 hours (86400 seconds)
+            # 5. Save the new data to the cache for 24 hours (86400 seconds)
             cache.set(cache_key, insights, timeout=86400)
             
-            # 4. Return the successful response
+            # 6. Return the successful response
             return Response(insights, status=status.HTTP_200_OK)
 
         except Exception as e:
-            # Catch any other unexpected errors
+            logging.error(f"An unexpected error occurred in SalaryInsightsAPIView: {str(e)}")
             return Response(
                 {"error": f"An unexpected internal server error occurred: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 
 
 
