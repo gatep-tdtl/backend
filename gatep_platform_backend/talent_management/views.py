@@ -1659,3 +1659,84 @@ class AudioTranscriptionView(APIView):
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+import tempfile
+import os
+ 
+from .models import Resume  # Adjust to your model name
+from interview_system.interview_cam import run_full_interview_photo_check
+ 
+ 
+class FullInterviewPhotoCheckAPIView(APIView):
+    """
+    API to run full AI interview image check.
+    Uses resume photo from DB and captured image from request.
+    Tracks malpractice_count in session.
+    """
+    permission_classes = [IsAuthenticated]
+ 
+    def post(self, request):
+        try:
+            # 1️⃣ Malpractice count from session
+            malpractice_count = request.session.get("malpractice_count", 0)
+ 
+            # 2️⃣ Get reference resume photo path from DB
+            try:
+                resume = Resume.objects.get(talent_id=request.user)
+            except Resume.DoesNotExist:
+                return Response(
+                    {"error": "Resume not found for this user."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            if not resume.profile_photo:  # Change field if different
+                return Response(
+                    {"error": "No reference photo found in DB."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            resume_photo_path = resume.profile_photo.path
+ 
+            # 3️⃣ Get uploaded captured photo
+            captured_file = request.FILES.get("captured")
+            if not captured_file:
+                return Response(
+                    {"error": "No interview photo uploaded (key: 'captured')."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+ 
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_captured:
+                for chunk in captured_file.chunks():
+                    temp_captured.write(chunk)
+                interview_photo_path = temp_captured.name
+            
+            # 4️⃣ Run AI check
+            result = run_full_interview_photo_check(resume_photo_path, interview_photo_path)
+ 
+            # 5️⃣ Update malpractice_count if any fail
+            if not result.get("match", True) \
+               or not result.get("orientation_ok", True) \
+               or result.get("multiple_faces", False) \
+               or result.get("malpractice", False):
+                malpractice_count += 1
+                request.session["malpractice_count"] = malpractice_count
+                request.session.modified = True
+ 
+            # 6️⃣ Cleanup
+            if os.path.exists(interview_photo_path):
+                os.remove(interview_photo_path)
+ 
+            # 7️⃣ Append count to result
+            result["malpractice_count"] = malpractice_count
+ 
+            return Response(result, status=status.HTTP_200_OK)
+ 
+        except Exception as e:
+            return Response(
+                {"error": f"Internal server error: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

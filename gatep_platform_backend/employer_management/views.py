@@ -14,7 +14,7 @@ from .serializers import (
     ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, InterviewStatusUpdateSerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer, PotentialCandidateSerializer,
     SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
-from utils.ai_match import get_ai_match_score
+from utils1.ai_match import get_ai_match_score
 from django.db.models import Avg
 from rest_framework.exceptions import PermissionDenied
 from employer_management.permissions import (
@@ -524,7 +524,7 @@ class EmployerApplicationDetailView(generics.RetrieveUpdateAPIView):
         context['request'] = self.request
         return context
     
-from utils.ai_match import get_ai_match_score
+from utils1.ai_match import get_ai_match_score
 
 from talent_management.models import Resume
 

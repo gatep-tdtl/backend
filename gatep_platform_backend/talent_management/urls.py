@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-     AudioTranscriptionView, CulturalPreparationAPIView, MalpracticeDetectionView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
+     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView, MalpracticeDetectionView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 from talent_management import views
@@ -26,5 +26,6 @@ urlpatterns = [
     path('mock-interview/report/<int:pk>/', MockInterviewReportView.as_view(), name='mock-interview-report'), # To retrieve final report
     path('mock-interview/malpractice/', MalpracticeDetectionView.as_view(), name='mock_interview_malpractice'),
     path('transcribe-audio/', AudioTranscriptionView.as_view(), name='transcribe-audio'),
+    path('malpractice-check/' , FullInterviewPhotoCheckAPIView.as_view(), name='malpractice-check'),
 
 ]
