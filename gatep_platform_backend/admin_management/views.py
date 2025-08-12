@@ -489,7 +489,6 @@ def dashboard_api(request):
         'cultural_data': cultural.data
     })
 
-
 from django.db import connections
 from datetime import datetime
 from rest_framework.permissions import IsAuthenticated
@@ -546,42 +545,67 @@ class TalentHeatmapAPIView(APIView):
             "roles": rolewise_data
         }
         return Response(response)
+
+
+
  
+from datetime import datetime
+from collections import Counter
+import json
+ 
+from django.db import connections
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+ 
+import json
+from collections import defaultdict
+from django.db import connection
+from rest_framework.views import APIView
+from rest_framework.response import Response
  
 class TalentHeatmapInstituteWiseAPIView(APIView):
-    permission_classes = [IsAuthenticated]
- 
     def get(self, request):
-        current_year = datetime.now().year
-        query = f"""
-            SELECT institution, COUNT(*) AS graduates FROM (
-                SELECT TRIM(degree_institution_name) AS institution
-                FROM gatep_platform_db.talent_management_resume
-                WHERE degree_institution_name IS NOT NULL
-                  AND TRIM(degree_institution_name) != ''
-                  AND degree_year_passing IS NOT NULL
-                  AND degree_year_passing <= {current_year}
-                UNION ALL
-                SELECT TRIM(diploma_institution_name) AS institution
-                FROM gatep_platform_db.talent_management_resume
-                WHERE diploma_institution_name IS NOT NULL
-                  AND TRIM(diploma_institution_name) != ''
-                  AND diploma_year_passing IS NOT NULL
-                  AND diploma_year_passing <= {current_year}
-            ) AS combined
-            GROUP BY institution
-            ORDER BY graduates DESC
-        """
+        institution_counts = defaultdict(int)
  
-        with connections['default'].cursor() as cursor:
-            cursor.execute(query)
+        # 1. Fetch data from your existing table
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT degree_details, diploma_details
+                FROM talent_management_resume
+                WHERE degree_details IS NOT NULL OR diploma_details IS NOT NULL
+            """)
             rows = cursor.fetchall()
  
-        response_data = [
-            {"institution": row[0], "graduates": row[1]}
-            for row in rows
-        ]
-        return Response(response_data)
+        # 2. Loop through each row
+        for degree_details, diploma_details in rows:
+            # Parse degree details
+            if degree_details:
+                try:
+                    degree_data = json.loads(degree_details)
+                    for degree in degree_data:
+                        name = degree.get("institution_name")
+                        if name:
+                            institution_counts[name.strip().lower()] += 1
+                except json.JSONDecodeError:
+                    pass
+ 
+            # Parse diploma details
+            if diploma_details:
+                try:
+                    diploma_data = json.loads(diploma_details)
+                    for diploma in diploma_data:
+                        name = diploma.get("institution_name")
+                        if name:
+                            institution_counts[name.strip().lower()] += 1
+                except json.JSONDecodeError:
+                    pass
+ 
+        # 3. Format the result
+        result = [{"institution": inst, "graduates": count} 
+                  for inst, count in institution_counts.items()]
+ 
+        return Response(result)
 
 
 
@@ -695,7 +719,6 @@ class TalentHeatmapInstituteWiseAPIView(APIView):
 #     })
 
 
-
 from django.db import connection
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -711,11 +734,11 @@ from .serializers import (
     SkillsDemandSerializer
 )
  
-
- 
 class AdminAnalyticsDashboardAPIView(APIView):
     def get(self, request):
         current_year = datetime.now().year
+        resume_table = "talent_management_resume"
+        application_table = "employer_management_application"
  
         # ------------------ Total AI Talent ------------------
         with connection.cursor() as cursor:
@@ -728,9 +751,9 @@ class AdminAnalyticsDashboardAPIView(APIView):
  
         # ------------------ Active Placements ------------------
         with connection.cursor() as cursor:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT COUNT(*)
-                FROM talent_management_application
+                FROM {application_table}
                 WHERE status = 'HIRED'
             """)
             active_placements = cursor.fetchone()[0]
@@ -756,7 +779,7 @@ class AdminAnalyticsDashboardAPIView(APIView):
                         ELSE NULL
                     END AS institution_name,
                     COUNT(*) AS graduates
-                FROM resume
+                FROM {resume_table}
                 WHERE 
                     (
                         (degree_year_passing IS NOT NULL AND degree_year_passing != '' 
@@ -773,16 +796,13 @@ class AdminAnalyticsDashboardAPIView(APIView):
         total_graduates_all = 0
         total_placements_all = 0
  
-        for row in graduates_data:
-            institution_name = row[0]
-            graduates_count = row[1]
+        for institution_name, graduates_count in graduates_data:
             total_graduates_all += graduates_count
- 
             with connection.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT COUNT(*)
-                    FROM employer_management_application e
-                    JOIN resume r ON r.talent_id_id = e.talent_id
+                    FROM {application_table} e
+                    JOIN {resume_table} r ON r.talent_id_id = e.talent_id
                     WHERE e.status = 'HIRED'
                     AND (
                         r.degree_institution_name = %s OR 
@@ -802,7 +822,7 @@ class AdminAnalyticsDashboardAPIView(APIView):
  
         # ------------------ Language Fit ------------------
         with connection.cursor() as cursor:
-            cursor.execute("SELECT languages FROM resume")
+            cursor.execute(f"SELECT languages FROM {resume_table}")
             lang_rows = cursor.fetchall()
  
         lang_counter = Counter()
@@ -818,9 +838,9 @@ class AdminAnalyticsDashboardAPIView(APIView):
  
         # ------------------ Cultural Adaptation ------------------
         with connection.cursor() as cursor:
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT current_country, COUNT(*) as graduates
-                FROM resume
+                FROM {resume_table}
                 GROUP BY current_country
             """)
             country_rows = cursor.fetchall()
@@ -828,10 +848,10 @@ class AdminAnalyticsDashboardAPIView(APIView):
         cultural_list = []
         for country, graduates_count in country_rows:
             with connection.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT COUNT(*)
-                    FROM employer_management_application e
-                    JOIN resume r ON r.talent_id_id = e.talent_id
+                    FROM {application_table} e
+                    JOIN {resume_table} r ON r.talent_id_id = e.talent_id
                     WHERE e.status = 'HIRED' AND r.current_country = %s
                 """, [country])
                 placements_count = cursor.fetchone()[0]
@@ -846,7 +866,7 @@ class AdminAnalyticsDashboardAPIView(APIView):
         with connection.cursor() as cursor:
             cursor.execute(f"""
                 SELECT current_state, COUNT(*) as graduates
-                FROM resume
+                FROM {resume_table}
                 WHERE 
                     (
                         (degree_year_passing IS NOT NULL AND degree_year_passing != '' 
@@ -862,10 +882,10 @@ class AdminAnalyticsDashboardAPIView(APIView):
         regional_list = []
         for state, graduates_count in state_rows:
             with connection.cursor() as cursor:
-                cursor.execute("""
+                cursor.execute(f"""
                     SELECT COUNT(*)
-                    FROM employer_management_application e
-                    JOIN resume r ON r.talent_id_id = e.talent_id
+                    FROM {application_table} e
+                    JOIN {resume_table} r ON r.talent_id_id = e.talent_id
                     WHERE e.status = 'HIRED' AND r.current_state = %s
                 """, [state])
                 placements_count = cursor.fetchone()[0]
@@ -880,7 +900,7 @@ class AdminAnalyticsDashboardAPIView(APIView):
  
         # ------------------ Skills in High Demand ------------------
         with connection.cursor() as cursor:
-            cursor.execute("SELECT skills FROM resume")
+            cursor.execute(f"SELECT skills FROM {resume_table}")
             skill_rows = cursor.fetchall()
  
         skill_counter = Counter()
@@ -901,7 +921,7 @@ class AdminAnalyticsDashboardAPIView(APIView):
             "active_placements": active_placements,
             "global_employers": global_employers,
             "success_rate": round(success_rate_total, 2),
-            "avg_days_to_place": 45,  # Static
+            "avg_days_to_place": 45,
             "top_institutions": TopInstitutionSerializer(institution_list, many=True).data,
             "language_fit": LanguageFitSerializer(language_list, many=True).data,
             "cultural_adaptation": CulturalAdaptationSerializer(cultural_list, many=True).data,

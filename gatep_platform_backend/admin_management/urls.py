@@ -25,8 +25,8 @@ urlpatterns = [
     path('users/', UserDashboardAPIView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDashboardAPIView.as_view(), name='user-detail'),
     path('api/dashboard/',dashboard_api, name='dashboard-api'),
-    path('talent-heatmap/', TalentHeatmapAPIView.as_view(), name='talent-heatmap'),
-    path('talent-heatmap-institute-wise/', TalentHeatmapInstituteWiseAPIView.as_view(), name='talent-heatmap-institute-wise') , 
+    path('talent-heatmap/', TalentHeatmapAPIView.as_view(), name='talent-heatmap'), # not working because of userrole not found
+    path('talent-heatmap-institute-wise/', TalentHeatmapInstituteWiseAPIView.as_view(), name='talent-heatmap-institute-wise') , # done 
     path('admin/analytics-dashboard/', AdminAnalyticsDashboardAPIView.as_view(), name='admin-analytics-dashboard'),  # Added AdminAnalyticsDashboardAPIView
  # Renamed for clarity
 
