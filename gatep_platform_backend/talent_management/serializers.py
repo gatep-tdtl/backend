@@ -1,7 +1,7 @@
 # talent_management/serializers.py
 import json
 from rest_framework import serializers
-from .models import CustomUser, TalentProfile, Resume
+from .models import CustomUser, ResumeDocument, TalentProfile, Resume
 from employer_management.models import JobPosting, Company
 
 class CustomUserLiteSerializer(serializers.ModelSerializer):
@@ -246,3 +246,39 @@ class CareerRoadmapRequestSerializer(serializers.Serializer):
         allow_empty=False,
         min_length=1
     )
+
+
+class ResumeDocumentSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the ResumeDocument model.
+    Handles serialization of document details and provides a full URL for the file.
+    """
+    document_url = serializers.SerializerMethodField()
+    # Optional: To show more user info than just the ID
+    talent_username = serializers.CharField(source='talent.username', read_only=True)
+
+    class Meta:
+        model = ResumeDocument
+        fields = [
+            'id',
+            'talent',           # The ID of the user
+            'talent_username',  # A read-only field for the user's name
+            'document_type',
+            'document_file',
+            'description',
+            'document_url',
+            'uploaded_at'
+        ]
+        # The 'talent' field is set in the view from the authenticated user.
+        # It's read-only from the client's perspective during creation.
+        read_only_fields = ['id', 'talent', 'talent_username', 'document_url', 'uploaded_at']
+        extra_kwargs = {
+            # 'document_file' is for writing, 'document_url' is for reading.
+            'document_file': {'write_only': True, 'required': True}
+        }
+
+    def get_document_url(self, obj):
+        request = self.context.get('request')
+        if obj.document_file and hasattr(obj.document_file, 'url') and request:
+            return request.build_absolute_uri(obj.document_file.url)
+        return None

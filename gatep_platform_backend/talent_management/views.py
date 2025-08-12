@@ -382,7 +382,87 @@ class ResumeBuilderAPIView(APIView):
             return JsonResponse({'message': 'Resume not found.'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return JsonResponse({'error': f"An error occurred during delete: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
+
+from .models import ResumeDocument # Correct model import
+from .serializers import ResumeDocumentSerializer # Correct serializer import
+
+# ... (all other views)
+
+# --- ADD THIS VIEW AT THE END OF THE FILE ---
+
+class ResumeDocumentAPIView(APIView):
+    """
+    API endpoint for managing resume documents linked directly to a user.
+    - GET /api/talent/resume-documents/: Lists all documents for the authenticated user.
+    - POST /api/talent/resume-documents/: Uploads a new document for the user.
+    - DELETE /api/talent/resume-documents/<id>/: Deletes a specific document.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request, pk=None):
+        """
+        Handles listing all documents for the authenticated user.
+        """
+        # The logic is simpler: directly filter by the authenticated user.
+        documents = ResumeDocument.objects.filter(talent=request.user)
+        serializer = ResumeDocumentSerializer(documents, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, pk=None):
+        """
+        Handles uploading a new document.
+        Expects 'document_file' and 'document_type' in the multipart/form-data.
+        """
+        # We no longer need to check for a Resume object.
+
+        # Check for required fields in the request
+        if 'document_file' not in request.FILES:
+            return Response({'error': "The 'document_file' field is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if 'document_type' not in request.data:
+            return Response({'error': "The 'document_type' field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = ResumeDocumentSerializer(data=request.data, context={'request': request})
         
+        if serializer.is_valid():
+            # The logic is simpler: save the serializer with the authenticated user.
+            serializer.save(talent=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk=None):
+        """
+        Handles deleting a specific document identified by its primary key (pk).
+        """
+        if not pk:
+            return Response({'error': 'Document ID (pk) must be provided.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # The logic is simpler: get the document by its pk and ensure it belongs to the user.
+            document = get_object_or_404(ResumeDocument, pk=pk, talent=request.user)
+            
+            # Delete the physical file from storage.
+            document.document_file.delete(save=False)
+            
+            document.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+             return Response({'error': f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+
+
 
 
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
@@ -1618,7 +1698,34 @@ class MalpracticeDetectionView(APIView):
             )
         
 
+class MockInterviewReportListView(APIView):
+    """
+    API endpoint to retrieve a list of all mock interview report IDs 
+    for the authenticated user.
+    """
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request, *args, **kwargs):
+        """
+        Returns a JSON list of all mock interview result IDs associated with the 
+        logged-in user, ordered by most recent first.
+        """
+        user = request.user
+        try:
+            # Filter MockInterviewResult objects by the current user,
+            # order by most recent creation date, and efficiently fetch only the 'id' field.
+            report_ids = MockInterviewResult.objects.filter(user=user).order_by('-created_at').values_list('id', flat=True)
+            
+            # Convert the QuerySet of IDs to a simple list and return it in the response.
+            # Example response: [15, 12, 5]
+            return Response(list(report_ids), status=status.HTTP_200_OK)
+        except Exception as e:
+            # Log the error for debugging purposes
+            print(f"Error fetching mock interview report list for user {user.username}: {e}")
+            return Response(
+                {"error": "An error occurred while fetching your interview report history."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 

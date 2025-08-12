@@ -358,7 +358,50 @@ class JobListing(models.Model):
     def __str__(self):
         return f"{self.title} at {self.company_name} ({self.status})"
     
+class ResumeDocument(models.Model):
+    """
+    Stores various documents and certificates associated with a Talent's user profile.
+    This model links directly to the CustomUser.
+    """
+    class DocumentTypeChoices(models.TextChoices):
+        TENTH_CERTIFICATE = 'TENTH_CERTIFICATE', _('10th Certificate')
+        TWELFTH_CERTIFICATE = 'TWELFTH_CERTIFICATE', _('12th Certificate')
+        DIPLOMA = 'DIPLOMA', _('Diploma Certificate')
+        DEGREE = 'DEGREE', _('Degree Certificate')
+        POST_GRADUATION = 'POST_GRADUATION', _('Post Graduation Certificate')
+        CERTIFICATION = 'CERTIFICATION', _('General Certification')
+        INTERNSHIP = 'INTERNSHIP', _('Internship Certificate')
+        SKILL = 'SKILL', _('Skill Certificate')
+        OTHER = 'OTHER', _('Other Document')
 
+    # --- THIS IS THE KEY CHANGE ---
+    # The ForeignKey now points directly to CustomUser (the "talent")
+    talent = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='resume_documents', # Changed related_name for clarity
+        verbose_name=_('Talent')
+    )
+
+    document_type = models.CharField(
+        max_length=50,
+        choices=DocumentTypeChoices.choices,
+        verbose_name=_('Document Type')
+    )
+    document_file = models.FileField(
+        upload_to='resume_documents/',
+        verbose_name=_('Document File')
+    )
+    description = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('Description'))
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} for {self.talent.username}"
+
+    class Meta:
+        verbose_name = "Resume Document"
+        verbose_name_plural = "Resume Documents"
+        ordering = ['-uploaded_at']
 
 
 ###################### viashnavi's code ###############
