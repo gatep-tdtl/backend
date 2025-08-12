@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView, MalpracticeDetectionView, MockInterviewReportListView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
+     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView, MalpracticeDetectionView, MockInterviewReportListView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeDocumentAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 from talent_management import views
@@ -13,8 +13,8 @@ urlpatterns = [
     path('resume/skill-gap/', SkillGapAnalysisAPIView.as_view(), name='skill_gap_analysis'),
     path('resume/career-roadmap/', CareerRoadmapAPIView.as_view(), name='career_roadmap'),
     path("upload-cert-photo/", views.upload_certification_photo, name="upload_cert_photo"),
-    path("resume-documents/", views.get_resume_documents, name="get_resume_documents"),
-    path("resume-documents/<int:pk>/", views.get_resume_document_by_id, name="get_resume_document_by_id"),
+    path("resume-documents/",  ResumeDocumentAPIView.as_view(), name="get_resume_documents"),
+    path("resume-documents/<int:pk>/", ResumeDocumentAPIView.as_view(), name="get_resume_document_by_id"),
 
     path('trending-skills/', RecommendedSkillsView.as_view(), name='trending-skills-list'),
     path('ai/cultural-preparation/', CulturalPreparationAPIView.as_view(), name='cultural-preparation'),
