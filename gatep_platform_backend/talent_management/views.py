@@ -403,16 +403,21 @@ class ResumeDocumentAPIView(APIView):
     API endpoint for managing resume documents linked directly to a user.
     - GET /api/talent/resume-documents/: Lists all documents for the authenticated user.
     - POST /api/talent/resume-documents/: Uploads a new document for the user.
+    - PATCH /api/talent/resume-documents/<id>/: Partially updates a specific document.
     - DELETE /api/talent/resume-documents/<id>/: Deletes a specific document.
     """
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
 
+    def _get_object(self, pk, user):
+        """Helper method to get the document and ensure ownership."""
+        return get_object_or_404(ResumeDocument, pk=pk, talent=user)
+
     def get(self, request, pk=None):
         """
         Handles listing all documents for the authenticated user.
         """
-        # The logic is simpler: directly filter by the authenticated user.
+        # The pk parameter is not used in the list view.
         documents = ResumeDocument.objects.filter(talent=request.user)
         serializer = ResumeDocumentSerializer(documents, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -420,24 +425,33 @@ class ResumeDocumentAPIView(APIView):
     def post(self, request, pk=None):
         """
         Handles uploading a new document.
-        Expects 'document_file' and 'document_type' in the multipart/form-data.
         """
-        # We no longer need to check for a Resume object.
-
-        # Check for required fields in the request
-        if 'document_file' not in request.FILES:
-            return Response({'error': "The 'document_file' field is required."}, status=status.HTTP_400_BAD_REQUEST)
-        if 'document_type' not in request.data:
-            return Response({'error': "The 'document_type' field is required."}, status=status.HTTP_400_BAD_REQUEST)
-
         serializer = ResumeDocumentSerializer(data=request.data, context={'request': request})
+        # The serializer will now handle the required field validation.
+        serializer.is_valid(raise_exception=True) 
+        serializer.save(talent=request.user)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def patch(self, request, pk=None):
+        """
+        Handles partially updating a specific document.
+        Allows changing the 'document_type' or replacing the 'document_file'.
+        """
+        if not pk:
+            return Response({'error': 'Document ID (pk) must be provided for an update.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if serializer.is_valid():
-            # The logic is simpler: save the serializer with the authenticated user.
-            serializer.save(talent=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        document = self._get_object(pk, request.user)
+        
+        # If a new file is uploaded, delete the old one first.
+        if 'document_file' in request.FILES:
+            document.document_file.delete(save=False)
+            
+        # Use partial=True to allow partial updates
+        serializer = ResumeDocumentSerializer(document, data=request.data, partial=True, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     def delete(self, request, pk=None):
         """
@@ -446,22 +460,15 @@ class ResumeDocumentAPIView(APIView):
         if not pk:
             return Response({'error': 'Document ID (pk) must be provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            # The logic is simpler: get the document by its pk and ensure it belongs to the user.
-            document = get_object_or_404(ResumeDocument, pk=pk, talent=request.user)
-            
-            # Delete the physical file from storage.
-            document.document_file.delete(save=False)
-            
-            document.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-             return Response({'error': f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-
-
-
+        # The try/except is simplified as get_object_or_404 handles the 404 case.
+        # DRF's default exception handler will catch other errors and return a 500.
+        document = self._get_object(pk, request.user)
+        
+        # Delete the physical file from storage.
+        document.document_file.delete(save=False)
+        
+        document.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 

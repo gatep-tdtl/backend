@@ -4,6 +4,8 @@ from django.urls import path # Corrected 'rom' to 'from'
 # No need to import DefaultRouter if you're not using it
 
 from .views import (
+    TalentHeatmapAPIView,
+    TalentHeatmapInstituteWiseAPIView,
     UserDashboardAPIView,
     DashboardSummaryAPIView,GlobalDashboardOverviewAPIView,
     dashboard_api  # Your ViewSet
@@ -22,6 +24,8 @@ urlpatterns = [
     path('users/', UserDashboardAPIView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDashboardAPIView.as_view(), name='user-detail'),
     path('api/dashboard/',dashboard_api, name='dashboard-api'),
+    path('talent-heatmap/', TalentHeatmapAPIView.as_view(), name='talent-heatmap'),
+    path('talent-heatmap-institute-wise/', TalentHeatmapInstituteWiseAPIView.as_view(), name='talent-heatmap-institute-wise')
  # Renamed for clarity
 
     # System Health Status ViewSet - Manually defined URLs for list/create and detail operations

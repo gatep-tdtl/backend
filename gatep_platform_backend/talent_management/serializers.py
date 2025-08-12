@@ -247,6 +247,10 @@ class CareerRoadmapRequestSerializer(serializers.Serializer):
         min_length=1
     )
 
+from django.conf import settings
+from urllib.parse import urljoin
+from rest_framework import serializers
+from .models import ResumeDocument
 
 class ResumeDocumentSerializer(serializers.ModelSerializer):
     """
@@ -254,31 +258,54 @@ class ResumeDocumentSerializer(serializers.ModelSerializer):
     Handles serialization of document details and provides a full URL for the file.
     """
     document_url = serializers.SerializerMethodField()
-    # Optional: To show more user info than just the ID
     talent_username = serializers.CharField(source='talent.username', read_only=True)
 
     class Meta:
         model = ResumeDocument
         fields = [
             'id',
-            'talent',           # The ID of the user
-            'talent_username',  # A read-only field for the user's name
+            'talent',
+            'talent_username',
             'document_type',
-            'document_file',
+            'document_file',  # This field is used for upload (write-only)
             'description',
-            'document_url',
+            'document_url',   # This field is used for response (read-only)
             'uploaded_at'
         ]
-        # The 'talent' field is set in the view from the authenticated user.
-        # It's read-only from the client's perspective during creation.
         read_only_fields = ['id', 'talent', 'talent_username', 'document_url', 'uploaded_at']
         extra_kwargs = {
-            # 'document_file' is for writing, 'document_url' is for reading.
-            'document_file': {'write_only': True, 'required': True}
+            'document_file': {'write_only': True, 'required': True},
+            # We make description optional on update, but required on create
+            'description': {'required': False, 'allow_blank': True}
         }
 
     def get_document_url(self, obj):
-        request = self.context.get('request')
-        if obj.document_file and hasattr(obj.document_file, 'url') and request:
-            return request.build_absolute_uri(obj.document_file.url)
+        """
+        Constructs the full, absolute URL for the document file using
+        the BASE_MEDIA_URL from settings.py.
+        """
+        if obj.document_file and hasattr(obj.document_file, 'name'):
+            # obj.document_file.name gives you the relative path e.g., "certifications/file.jpg"
+            relative_path = obj.document_file.name
+            
+            # Use urljoin to safely combine the base URL and the relative path
+            return urljoin(settings.BASE_MEDIA_URL, relative_path)
+            
         return None
+
+    def validate(self, data):
+        """
+        On PATCH, 'document_file' is not required. The default required=True in extra_kwargs
+        applies only to POST.
+        """
+        # If this is a partial update (PATCH), 'document_file' is not required.
+        if self.instance and not self.partial:
+             # This logic is mostly handled by DRF, but explicit check can be useful.
+             pass
+
+        # For POST requests, ensure 'document_file' is present.
+        # This is already handled by 'required': True in extra_kwargs.
+        if not self.instance and 'document_file' not in data:
+            raise serializers.ValidationError({"document_file": "This field is required for a new upload."})
+
+        return data

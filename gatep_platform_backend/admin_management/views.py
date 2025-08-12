@@ -490,7 +490,98 @@ def dashboard_api(request):
     })
 
 
-
+from django.db import connections
+from datetime import datetime
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+ 
+ 
+class TalentHeatmapAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+ 
+    def get_statewise_data(self, role=None):
+        # Base query
+        query = """
+            SELECT current_state, COUNT(id) AS professionals
+            FROM gatep_platform_db.talent_management_resume
+            WHERE current_state IS NOT NULL AND TRIM(current_state) != ''
+        """
+        params = []
+        # Add role filter if present
+        if role:
+            query += " AND LOWER(TRIM(user_role)) = LOWER(%s)"
+            params.append(role.strip())
+        query += " GROUP BY current_state"
+ 
+        # Execute query
+        with connections['default'].cursor() as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+ 
+        # Clean result
+        result = []
+        for row in rows:
+            state = row[0].strip().title()
+            count = row[1]
+            result.append({"state": state, "professionals": count})
+ 
+        # Optional: sort by count
+        result.sort(key=lambda x: x["professionals"], reverse=True)
+        return result
+ 
+    def get(self, request):
+        # 1. Overall statewise professionals
+        overall_data = self.get_statewise_data()
+ 
+        # 2. Role-specific data
+        roles = ["AI/ML Engineer", "Data Scientist", "Business Analyst"]
+        rolewise_data = {}
+        for role in roles:
+            rolewise_data[role] = self.get_statewise_data(role=role)
+ 
+        # 3. Final response
+        response = {
+            "overall": overall_data,
+            "roles": rolewise_data
+        }
+        return Response(response)
+ 
+ 
+class TalentHeatmapInstituteWiseAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+ 
+    def get(self, request):
+        current_year = datetime.now().year
+        query = f"""
+            SELECT institution, COUNT(*) AS graduates FROM (
+                SELECT TRIM(degree_institution_name) AS institution
+                FROM gatep_platform_db.talent_management_resume
+                WHERE degree_institution_name IS NOT NULL
+                  AND TRIM(degree_institution_name) != ''
+                  AND degree_year_passing IS NOT NULL
+                  AND degree_year_passing <= {current_year}
+                UNION ALL
+                SELECT TRIM(diploma_institution_name) AS institution
+                FROM gatep_platform_db.talent_management_resume
+                WHERE diploma_institution_name IS NOT NULL
+                  AND TRIM(diploma_institution_name) != ''
+                  AND diploma_year_passing IS NOT NULL
+                  AND diploma_year_passing <= {current_year}
+            ) AS combined
+            GROUP BY institution
+            ORDER BY graduates DESC
+        """
+ 
+        with connections['default'].cursor() as cursor:
+            cursor.execute(query)
+            rows = cursor.fetchall()
+ 
+        response_data = [
+            {"institution": row[0], "graduates": row[1]}
+            for row in rows
+        ]
+        return Response(response_data)
 
 
 
