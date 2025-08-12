@@ -693,3 +693,218 @@ class TalentHeatmapInstituteWiseAPIView(APIView):
 #         "roles": ["all", "talent", "employer", "admin"],
 #         "statuses": ["all", "active", "pending", "suspended"]
 #     })
+
+
+
+from django.db import connection
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from datetime import datetime
+from collections import Counter
+import json
+ 
+from .serializers import (
+    TopInstitutionSerializer,
+    LanguageFitSerializer,
+    CulturalAdaptationSerializer,
+    RegionalPerformanceSerializer,
+    SkillsDemandSerializer
+)
+ 
+
+ 
+class AdminAnalyticsDashboardAPIView(APIView):
+    def get(self, request):
+        current_year = datetime.now().year
+ 
+        # ------------------ Total AI Talent ------------------
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM talent_management_customuser 
+                WHERE user_role = 'TALENT'
+            """)
+            total_ai_talent = cursor.fetchone()[0]
+ 
+        # ------------------ Active Placements ------------------
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*)
+                FROM talent_management_application
+                WHERE status = 'HIRED'
+            """)
+            active_placements = cursor.fetchone()[0]
+ 
+        # ------------------ Global Employers ------------------
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM talent_management_customuser
+                WHERE user_role = 'EMPLOYER'
+            """)
+            global_employers = cursor.fetchone()[0]
+ 
+        # ------------------ Top Performing Institutions ------------------
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                SELECT 
+                    CASE
+                        WHEN degree_institution_name IS NOT NULL AND degree_institution_name != '' 
+                            THEN degree_institution_name
+                        WHEN diploma_institution_name IS NOT NULL AND diploma_institution_name != '' 
+                            THEN diploma_institution_name
+                        ELSE NULL
+                    END AS institution_name,
+                    COUNT(*) AS graduates
+                FROM resume
+                WHERE 
+                    (
+                        (degree_year_passing IS NOT NULL AND degree_year_passing != '' 
+                         AND CAST(degree_year_passing AS UNSIGNED) <= {current_year})
+                        OR
+                        (diploma_year_passing IS NOT NULL AND diploma_year_passing != '' 
+                         AND CAST(diploma_year_passing AS UNSIGNED) <= {current_year})
+                    )
+                GROUP BY institution_name
+            """)
+            graduates_data = cursor.fetchall()
+ 
+        institution_list = []
+        total_graduates_all = 0
+        total_placements_all = 0
+ 
+        for row in graduates_data:
+            institution_name = row[0]
+            graduates_count = row[1]
+            total_graduates_all += graduates_count
+ 
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM employer_management_application e
+                    JOIN resume r ON r.talent_id_id = e.talent_id
+                    WHERE e.status = 'HIRED'
+                    AND (
+                        r.degree_institution_name = %s OR 
+                        r.diploma_institution_name = %s
+                    )
+                """, [institution_name, institution_name])
+                placements_count = cursor.fetchone()[0]
+                total_placements_all += placements_count
+ 
+            success_rate = (placements_count / graduates_count) * 100 if graduates_count else 0
+            institution_list.append({
+                "institution_name": institution_name,
+                "graduates": graduates_count,
+                "placements": placements_count,
+                "success_rate": round(success_rate, 2)
+            })
+ 
+        # ------------------ Language Fit ------------------
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT languages FROM resume")
+            lang_rows = cursor.fetchall()
+ 
+        lang_counter = Counter()
+        for (lang_json,) in lang_rows:
+            if lang_json:
+                try:
+                    langs = json.loads(lang_json)
+                    if isinstance(langs, list):
+                        lang_counter.update(langs)
+                except:
+                    pass
+        language_list = [{"language": k, "count": v} for k, v in lang_counter.most_common(10)]
+ 
+        # ------------------ Cultural Adaptation ------------------
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT current_country, COUNT(*) as graduates
+                FROM resume
+                GROUP BY current_country
+            """)
+            country_rows = cursor.fetchall()
+ 
+        cultural_list = []
+        for country, graduates_count in country_rows:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM employer_management_application e
+                    JOIN resume r ON r.talent_id_id = e.talent_id
+                    WHERE e.status = 'HIRED' AND r.current_country = %s
+                """, [country])
+                placements_count = cursor.fetchone()[0]
+ 
+            success_rate = (placements_count / graduates_count) * 100 if graduates_count else 0
+            cultural_list.append({
+                "country": country,
+                "success_rate": round(success_rate, 2)
+            })
+ 
+        # ------------------ Regional Performance ------------------
+        with connection.cursor() as cursor:
+            cursor.execute(f"""
+                SELECT current_state, COUNT(*) as graduates
+                FROM resume
+                WHERE 
+                    (
+                        (degree_year_passing IS NOT NULL AND degree_year_passing != '' 
+                         AND CAST(degree_year_passing AS UNSIGNED) <= {current_year})
+                        OR
+                        (diploma_year_passing IS NOT NULL AND diploma_year_passing != '' 
+                         AND CAST(diploma_year_passing AS UNSIGNED) <= {current_year})
+                    )
+                GROUP BY current_state
+            """)
+            state_rows = cursor.fetchall()
+ 
+        regional_list = []
+        for state, graduates_count in state_rows:
+            with connection.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM employer_management_application e
+                    JOIN resume r ON r.talent_id_id = e.talent_id
+                    WHERE e.status = 'HIRED' AND r.current_state = %s
+                """, [state])
+                placements_count = cursor.fetchone()[0]
+ 
+            success_rate = (placements_count / graduates_count) * 100 if graduates_count else 0
+            regional_list.append({
+                "state": state,
+                "graduates": graduates_count,
+                "placements": placements_count,
+                "success_rate": round(success_rate, 2)
+            })
+ 
+        # ------------------ Skills in High Demand ------------------
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT skills FROM resume")
+            skill_rows = cursor.fetchall()
+ 
+        skill_counter = Counter()
+        for (skills,) in skill_rows:
+            if skills:
+                try:
+                    skill_list = json.loads(skills) if skills.strip().startswith("[") else [s.strip() for s in skills.split(",")]
+                    skill_counter.update(skill_list)
+                except:
+                    pass
+        skills_list = [{"skill": k, "count": v} for k, v in skill_counter.most_common(10)]
+ 
+        # ------------------ Final Response ------------------
+        success_rate_total = (total_placements_all / total_graduates_all) * 100 if total_graduates_all else 0
+ 
+        return Response({
+            "total_ai_talent": total_ai_talent,
+            "active_placements": active_placements,
+            "global_employers": global_employers,
+            "success_rate": round(success_rate_total, 2),
+            "avg_days_to_place": 45,  # Static
+            "top_institutions": TopInstitutionSerializer(institution_list, many=True).data,
+            "language_fit": LanguageFitSerializer(language_list, many=True).data,
+            "cultural_adaptation": CulturalAdaptationSerializer(cultural_list, many=True).data,
+            "regional_performance": RegionalPerformanceSerializer(regional_list, many=True).data,
+            "skills_demand": SkillsDemandSerializer(skills_list, many=True).data
+        })

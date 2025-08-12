@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView, MalpracticeDetectionView, MockInterviewReportListView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeDocumentAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
+     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView, MalpracticeDetectionView, MockInterviewReportListView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeDocumentAPIView, ResumeProgressAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 from talent_management import views
@@ -15,6 +15,7 @@ urlpatterns = [
     path("upload-cert-photo/", views.upload_certification_photo, name="upload_cert_photo"),
     path("resume-documents/",  ResumeDocumentAPIView.as_view(), name="get_resume_documents"),
     path("resume-documents/<int:pk>/", ResumeDocumentAPIView.as_view(), name="get_resume_document_by_id"),
+    path('resume-progress/', ResumeProgressAPIView.as_view(), name='resume-progress'),
 
     path('trending-skills/', RecommendedSkillsView.as_view(), name='trending-skills-list'),
     path('ai/cultural-preparation/', CulturalPreparationAPIView.as_view(), name='cultural-preparation'),

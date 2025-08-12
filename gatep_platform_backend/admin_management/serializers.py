@@ -186,3 +186,42 @@ class CulturalDataSerializer(serializers.Serializer):
 # class IsRoleAdmin(BasePermission):
 #     def has_permission(self, request, view):
 #         return request.user.is_authenticated and request.user.role == 'admin'
+
+
+
+
+ 
+
+ 
+ 
+class LanguageFitSerializer(serializers.Serializer):
+    language = serializers.CharField()
+    count = serializers.IntegerField()
+ 
+ 
+class CulturalAdaptationSerializer(serializers.Serializer):
+    country = serializers.CharField(allow_null=True, allow_blank=True)
+    success_rate = serializers.FloatField()
+ 
+ 
+
+ 
+class SkillsDemandSerializer(serializers.Serializer):
+    skill = serializers.CharField()
+    count = serializers.IntegerField()
+ 
+ 
+# ------------------ Main Dashboard Serializer ------------------
+ 
+class AdminAnalyticsDashboardSerializer(serializers.Serializer):
+    total_ai_talent = serializers.IntegerField()
+    active_placements = serializers.IntegerField()
+    global_employers = serializers.IntegerField()
+    success_rate = serializers.FloatField()
+    avg_days_to_place = serializers.IntegerField()
+ 
+    top_institutions = TopInstitutionSerializer(many=True)
+    language_fit = LanguageFitSerializer(many=True)
+    cultural_adaptation = CulturalAdaptationSerializer(many=True)
+    regional_performance = RegionalPerformanceSerializer(many=True)
+    skills_demand = SkillsDemandSerializer(many=True)

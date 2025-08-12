@@ -44,8 +44,8 @@ class ChatbotService:
             if resume.skills: profile_parts.append(f"Skills: {resume.skills}")
             if resume.experience: profile_parts.append(f"Experience: {resume.experience}")
             if resume.preferred_tech_stack: profile_parts.append(f"Preferred Stack: {resume.preferred_tech_stack}")
-            if resume.current_location: profile_parts.append(f"Location: {resume.current_location}")
-            
+            if resume.current_city: profile_parts.append(f"Location: {resume.current_city}")
+
             if not profile_parts:
                 return "The user's resume exists but is mostly empty."
             return "User Profile Summary: " + "; ".join(profile_parts)

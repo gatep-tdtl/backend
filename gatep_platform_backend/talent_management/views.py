@@ -505,6 +505,92 @@ def upload_certification_photo(request):
     
     return JsonResponse({"error": "No photo uploaded"}, status=400)
 
+
+
+
+class ResumeProgressAPIView(APIView):
+    """
+    Calculates and returns the completion progress of the authenticated user's resume.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _safe_json_loads(self, json_string, default_value=None):
+        """
+        Safely loads a JSON string from a TextField. Returns a default
+        value (e.g., an empty list) if the string is empty or invalid.
+        """
+        if default_value is None:
+            default_value = []
+        if not json_string:
+            return default_value
+        try:
+            return json.loads(json_string)
+        except (json.JSONDecodeError, TypeError):
+            return default_value
+
+    def get(self, request, *args, **kwargs):
+        """
+        Analyzes the user's resume and returns its completion percentage.
+        """
+        try:
+            resume = Resume.objects.get(talent_id=request.user, is_deleted=False)
+        except Resume.DoesNotExist:
+            return Response({
+                'progress_percentage': 0,
+                'message': "You haven't started your resume yet. Let's get started!",
+                'missing_sections': [
+                    'Personal Info', 'Profile Photo', 'Resume PDF', 'Summary', 
+                    'Skills', 'Experience', 'Education', 'Projects', 'Links'
+                ]
+            }, status=status.HTTP_200_OK)
+
+        # --- Define the scoring rubric ---
+        checklist = {
+            'Personal Info': {'points': 15, 'check': lambda r: all([r.name, r.email, r.phone])},
+            'Profile Photo': {'points': 10, 'check': lambda r: bool(r.profile_photo)},
+            'Resume PDF':    {'points': 10, 'check': lambda r: bool(r.resume_pdf)},
+            'Summary':       {'points': 10, 'check': lambda r: bool(r.summary)},
+            'Skills':        {'points': 15, 'check': lambda r: bool(self._safe_json_loads(r.skills))},
+            'Experience':    {'points': 15, 'check': lambda r: bool(self._safe_json_loads(r.experience))},
+            'Education':     {'points': 10, 'check': lambda r: bool(r.degree_details)},
+            'Projects':      {'points': 10, 'check': lambda r: bool(self._safe_json_loads(r.projects))},
+            'Links':         {'points': 5,  'check': lambda r: bool(r.professional_links)},
+        }
+
+        achieved_points = 0
+        total_possible_points = sum(item['points'] for item in checklist.values())
+        missing_sections = []
+
+        # --- Calculate the score ---
+        for section_name, details in checklist.items():
+            if details['check'](resume):
+                achieved_points += details['points']
+            else:
+                missing_sections.append(section_name)
+
+        # --- Calculate percentage and create a helpful message ---
+        progress_percentage = 0
+        if total_possible_points > 0:
+            progress_percentage = int((achieved_points / total_possible_points) * 100)
+
+        if progress_percentage == 100:
+            message = "Congratulations! Your resume profile is complete and looks great."
+        elif progress_percentage > 70:
+            message = "You're almost there! Complete the remaining sections to stand out."
+        elif progress_percentage > 30:
+            message = "Great start! Keep filling out your profile to attract more opportunities."
+        else:
+            message = "Let's build a standout resume! Fill in the missing sections to get started."
+
+        return Response({
+            'progress_percentage': progress_percentage,
+            'achieved_points': achieved_points,
+            'total_possible_points': total_possible_points,
+            'message': message,
+            'missing_sections': missing_sections
+        }, status=status.HTTP_200_OK)
+
+
     
 # --------------------------------------------------------------------------
 # --- AI ANALYSIS MODULES VIEWS (Unchanged, they are fine) ---
