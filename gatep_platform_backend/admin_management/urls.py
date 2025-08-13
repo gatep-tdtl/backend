@@ -5,6 +5,7 @@ from django.urls import path # Corrected 'rom' to 'from'
 
 from .views import (
     
+    AnalyticsCountAPIView,
     TalentHeatmapAPIView,
     TalentHeatmapInstituteWiseAPIView,
     UserDashboardAPIView,
@@ -17,7 +18,7 @@ app_name = 'admin_management' # Good practice for namespacing
 urlpatterns = [
     # Dashboard Summary APIView
     path('dashboard/summary/', DashboardSummaryAPIView.as_view(), name='dashboard-summary'),
-
+    path('api/admin/analytics-count/', AnalyticsCountAPIView.as_view(), name='analytics-count'),
     # Global Dashboard Overview APIView
     path('dashboard/global-overview/',GlobalDashboardOverviewAPIView.as_view(), name='global-dashboard-overview'),
 

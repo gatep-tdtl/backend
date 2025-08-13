@@ -343,3 +343,66 @@ class TalentHeatmapInstituteWiseAPIView(APIView):
  
         return Response(result)
 
+
+
+class AnalyticsCountAPIView(APIView):
+    """
+    API: /api/admin/analytics-count/
+    Fetches overall analytics counts from gatep_platform_db
+    """
+ 
+    def get(self, request):
+        data = {}
+ 
+        with connection.cursor() as cursor:
+            #  Total AI Talent Count
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM talent_management_customuser 
+                WHERE user_role = 'TALENT';
+            """)
+            data['total_ai_talent'] = cursor.fetchone()[0]
+ 
+            # Global Employer Count
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM talent_management_customuser 
+                WHERE user_role = 'EMPLOYER';
+            """)
+            data['global_employer_count'] = cursor.fetchone()[0]
+ 
+            #  Active Placements Count (HIRED)
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM employer_management_application 
+                WHERE status = 'HIRED';
+            """)
+            hired_count = cursor.fetchone()[0]
+            data['active_placements'] = hired_count
+ 
+            #  Total Applications Count
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM employer_management_application;
+            """)
+            total_applications = cursor.fetchone()[0]
+ 
+            # Success Rate Calculation
+            if total_applications > 0:
+                data['success_rate'] = round((hired_count / total_applications) * 100, 2)
+            else:
+                data['success_rate'] = 0.0
+ 
+            #  Average Days to Place
+            cursor.execute("""
+                SELECT AVG(DATEDIFF(updated_at, created_at)) 
+                FROM employer_management_application 
+                WHERE status = 'HIRED';
+            """)
+            avg_days = cursor.fetchone()[0]
+            data['average_days_to_place'] = round(avg_days, 2) if avg_days else 0.0
+ 
+        return Response(data)
+    
+
+    
