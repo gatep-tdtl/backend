@@ -5,11 +5,12 @@ from django.urls import path # Corrected 'rom' to 'from'
 
 from .views import (
     
-    AnalyticsCountAPIView,
+    AdminDashboardAPIView,
+    GlobalOverviewAPIView,
     TalentHeatmapAPIView,
     TalentHeatmapInstituteWiseAPIView,
     UserDashboardAPIView,
-    DashboardSummaryAPIView,GlobalDashboardOverviewAPIView,
+    
       # Your ViewSet
 )
 
@@ -17,11 +18,13 @@ app_name = 'admin_management' # Good practice for namespacing
 
 urlpatterns = [
     # Dashboard Summary APIView
-    path('dashboard/summary/', DashboardSummaryAPIView.as_view(), name='dashboard-summary'),
-    path('api/admin/analytics-count/', AnalyticsCountAPIView.as_view(), name='analytics-count'),
+    # path('dashboard/summary/', DashboardSummaryAPIView.as_view(), name='dashboard-summary'),###not working
+   # path('dashboard/analytics/', AdminDashboardAnalyticsView.as_view(), name='admin_dashboard_analytics'),
     # Global Dashboard Overview APIView
-    path('dashboard/global-overview/',GlobalDashboardOverviewAPIView.as_view(), name='global-dashboard-overview'),
-
+    path('dashboard/global-overview/', GlobalOverviewAPIView.as_view(), name='global-dashboard-overview'),
+    
+   #path('dashboard/filter-options/', DashboardFilterOptionsAPIView.as_view(), name='dashboard-filter-options'),
+    path('dashboard/admin/', AdminDashboardAPIView.as_view(), name='admin-dashboard'),
     # User Management APIView (for listing/creating and retrieving/updating/deleting)
     path('users/', UserDashboardAPIView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDashboardAPIView.as_view(), name='user-detail'),

@@ -309,3 +309,62 @@ class ResumeDocumentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"document_file": "This field is required for a new upload."})
 
         return data
+    
+
+
+
+
+from .models import MockInterviewResult, SkillsPassport , Resume# Add SkillsPassport
+
+# ... (at the end of the file, before other non-model serializers) ...
+class SkillsPassportSerializer(serializers.ModelSerializer):
+    # --- FIX #1: Use username as a fallback for the name ---
+    talent_name = serializers.SerializerMethodField()
+    
+    # --- These are fine ---
+    role = serializers.CharField(source='source_interview.position_applied', read_only=True)
+    location = serializers.CharField(source='user.resumes.first.preferred_location', read_only=True, default="Not Specified")
+
+    # --- FIX #3: Use a SerializerMethodField to reliably get certifications ---
+    verified_certifications = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SkillsPassport
+        fields = [
+            'id',
+            'status',
+            # Additional combined data
+            'talent_name',
+            'role',
+            'location',
+            # Fields from SkillsPassport model
+            'global_readiness_score',
+            'relocation_score',
+            'cultural_adaptability_score',
+            'communication_skills_score',
+            'technical_readiness_score',
+            'ai_powered_summary',
+            'key_strengths',
+            'specialization_scores',
+            'frameworks_tools',
+            # Data pulled directly from related models
+            'verified_certifications', # Now included
+            'created_at'
+        ]
+
+    def get_talent_name(self, obj):
+        """Returns the user's full name, or their username as a fallback."""
+        user = obj.user
+        full_name = user.get_full_name()
+        return full_name if full_name else user.username
+
+    def get_verified_certifications(self, obj):
+        """Safely retrieves certification details from the user's resume."""
+        try:
+            # A user might have multiple resumes, we'll get the latest one.
+            resume = obj.user.resumes.order_by('-updated_at').first()
+            if resume and resume.certification_details:
+                return resume.certification_details
+        except Resume.DoesNotExist:
+            return []
+        return []

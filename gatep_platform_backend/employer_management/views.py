@@ -947,4 +947,117 @@ class EmployerAnalyticsDemographicAPIView(APIView):
  
         return Response(data)
     
+
+
+
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.db import connection
+from django.utils.timezone import now
+from datetime import timedelta
+
+
+class EmployerAnalyticsTrendsAPIView(APIView):
+    """
+    Employer Analytics Trends API
+    Provides Hiring Funnel + Key Performance Metrics
+    with filters for date range and job role
+    """
+
+    def get(self, request, *args, **kwargs):
+        # ---------- Filters ---------- #
+        # Dropdown for date range
+        period = request.query_params.get("period", "6m")  # default = last 6 months
+        job_role = request.query_params.get("job_role", "all")  # default = all jobs
+
+        today = now().date()
+        if period == "1m":
+            start_date = today - timedelta(days=30)
+        elif period == "3m":
+            start_date = today - timedelta(days=90)
+        elif period == "6m":
+            start_date = today - timedelta(days=180)
+        elif period == "1y":
+            start_date = today - timedelta(days=365)
+        else:
+            start_date = None  # all-time
+
+        # ---------- Base Query ---------- #
+        base_condition = "status != 'DELETED'"
+        filters = []
+
+        if start_date:
+            filters.append(f"created_at >= '{start_date}'")
+
+        if job_role.lower() != "all":
+            filters.append(f"job_role = '{job_role}'")
+
+        if filters:
+            base_condition += " AND " + " AND ".join(filters)
+
+        data = {}
+
+        with connection.cursor() as cursor:
+            # ---------------- Hiring Funnel ---------------- #
+            # Applications
+            cursor.execute(f"""
+                SELECT COUNT(*) 
+                FROM employer_management_application 
+                WHERE {base_condition}
+            """)
+            applications_count = cursor.fetchone()[0]
+
+            # Interviews
+            cursor.execute(f"""
+                SELECT COUNT(*) 
+                FROM employer_management_application 
+                WHERE status IN ('SCHEDULED', 'RESCHEDULED')
+                AND {base_condition}
+            """)
+            interviews_count = cursor.fetchone()[0]
+
+            # Hires
+            cursor.execute(f"""
+                SELECT COUNT(*) 
+                FROM employer_management_application 
+                WHERE status = 'HIRED'
+                AND {base_condition}
+            """)
+            hires_count = cursor.fetchone()[0]
+
+        # ---------- Conversion Rates ---------- #
+        interview_conversion = (
+            round((interviews_count / applications_count) * 100, 1)
+            if applications_count > 0 else 0
+        )
+        hire_conversion = (
+            round((hires_count / interviews_count) * 100, 1)
+            if interviews_count > 0 else 0
+        )
+
+        data["filters"] = {
+            "selected_period": period,
+            "selected_job_role": job_role
+        }
+
+        data["hiring_funnel"] = {
+            "applications": applications_count,
+            "interviews": interviews_count,
+            "interview_conversion_rate": f"{interview_conversion}%",
+            "hires": hires_count,
+            "hire_conversion_rate": f"{hire_conversion}%"
+        }
+
+        # ---------- Key Performance Metrics (Static placeholders for now) ---------- #
+        data["key_performance_metrics"] = {
+            "average_time_to_hire": None,
+            "cost_per_hire": None,
+            "offer_acceptance_rate": None
+        }
+
+        return Response(data)
+    
 ###################### nikita's code end ##############################

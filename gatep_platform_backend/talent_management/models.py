@@ -488,6 +488,65 @@ class MockInterviewResult(models.Model):
 
     def __str__(self):
         return f"Mock Interview for {self.user.username} ({self.position_applied}) - {self.status}"
+
+
+
+
+class SkillsPassport(models.Model):
+    """
+    Stores the AI-generated and aggregated data for a talent's Skills Passport,
+    based on a specific mock interview result and their resume.
+    """
+    class PassportStatus(models.TextChoices):
+        PENDING = 'PENDING', _('Pending Generation')
+        COMPLETED = 'COMPLETED', _('Completed Successfully')
+        FAILED = 'FAILED', _('Generation Failed')
+
+    # --- Links to source data ---
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='skills_passports')
+    source_interview = models.OneToOneField(
+        MockInterviewResult,
+        on_delete=models.CASCADE,
+        related_name='skills_passport',
+        help_text="The interview result this passport is based on."
+    )
+
+    # --- Passport Status ---
+    status = models.CharField(
+        max_length=50,
+        choices=PassportStatus.choices,
+        default=PassportStatus.PENDING
+    )
+
+    # --- Data Fields (mirroring the UI) ---
+    
+    # Global Readiness
+    global_readiness_score = models.IntegerField(default=0, help_text="Overall weighted score (0-100)")
+    relocation_score = models.IntegerField(default=0, help_text="AI-generated score for relocation readiness (0-100)")
+    cultural_adaptability_score = models.IntegerField(default=0, help_text="AI-generated score for cultural fit (0-100)")
+    communication_skills_score = models.IntegerField(default=0, help_text="From interview report (0-100)")
+    technical_readiness_score = models.IntegerField(default=0, help_text="From interview report (0-100)")
+    
+    # AI-Powered Insights
+    ai_powered_summary = models.TextField(blank=True, help_text="AI-generated professional summary.")
+    key_strengths = models.JSONField(default=list, help_text="List of key strength tags, e.g., ['Advanced ML/DL', ...]")
+
+    # AI/ML Specializations
+    specialization_scores = models.JSONField(default=dict, help_text="Dict of specializations and their scores, e.g., {'Machine Learning': 95}")
+
+    # Frameworks & Tools
+    frameworks_tools = models.JSONField(default=list, help_text="List of dicts: [{'name': 'PyTorch', 'projects': 12, 'proficiency': 4}]")
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Skills Passport for {self.user.username} (Interview ID: {self.source_interview.id})"
+
+    class Meta:
+        ordering = ['-created_at']
+        unique_together = ('user', 'source_interview') # Ensures one passport per interview
     
 
 

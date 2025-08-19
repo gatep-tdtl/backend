@@ -1,7 +1,7 @@
 
 from django.urls import path
 from talent_management.views import (
-     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView, MalpracticeDetectionView, MockInterviewReportListView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeDocumentAPIView, ResumeProgressAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView )
+     AudioTranscriptionView, CulturalPreparationAPIView, FullInterviewPhotoCheckAPIView,  MalpracticeDetectionView, MockInterviewReportListView, MockInterviewReportView, MockInterviewStartView, MockInterviewSubmitAnswerView, MockInterviewVerifyIdentityView, RecommendedSkillsView, ResumeBuilderAPIView, ResumeDocumentAPIView, ResumeProgressAPIView, ResumeReviewAPIView, SalaryInsightsAPIView , SkillGapAnalysisAPIView , CareerRoadmapAPIView, SkillsPassportView )
 # from employer_management.views import (ApplicationListCreateView, ApplicationDetailView,
 #                                         SaveJobView, UnsaveJobView, ListSavedJobsView, JobPostingListCreateView,JobListWithMatchingScoreAPIView)
 from talent_management import views
@@ -31,4 +31,5 @@ urlpatterns = [
     path('transcribe-audio/', AudioTranscriptionView.as_view(), name='transcribe-audio'),
     path('malpractice-check/' , FullInterviewPhotoCheckAPIView.as_view(), name='malpractice-check'),
     path('mock-interview/reports/', MockInterviewReportListView.as_view(), name='mock-interview-report-list'),
+    path('skills-passport/', SkillsPassportView.as_view(), name='skills-passport-api'),
 ]

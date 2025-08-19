@@ -111,10 +111,39 @@ class GlobalDashboardOverviewSerializer(serializers.Serializer):
     global_employers = CountGrowthSerializer()
     active_placements = CountGrowthSerializer()
     total_placements = serializers.IntegerField()
- 
+
     regional_performance = RegionalPerformanceSerializer(many=True)
     skills_in_high_demand = SkillInDemandSerializer(many=True)
     top_performing_institutions = TopInstitutionSerializer(many=True)
-    system_health = SystemHealthStatusModelSerializer(many=True)
-    recent_system_activity = RecentSystemActivitySerializer(many=True)
-    key_performance_indicators = KeyPerformanceIndicatorsSerializer()
+
+
+
+
+
+
+
+
+class KPISerializer(serializers.Serializer):
+    profile_completion_rate = serializers.FloatField()
+    interview_success_rate = serializers.FloatField()
+    average_placement_time_days = serializers.FloatField()
+    employer_satisfaction_rate = serializers.FloatField()
+
+class RecentActivitySerializer(serializers.Serializer):
+    type = serializers.CharField()
+    description = serializers.CharField()
+    time_ago = serializers.CharField()
+
+# class GlobalDashboardOverviewSerializer(serializers.Serializer):
+#     registered_ai_talent = serializers.DictField()
+#     global_employers = serializers.DictField()
+#     active_placements = serializers.DictField()
+#     total_placements = serializers.IntegerField()
+#     regional_performance = serializers.ListField()
+    
+#     # --- THESE FIELDS ARE CAUSING THE ERROR ---
+#     skills_in_high_demand = serializers.ListField(child=serializers.DictField())
+#     top_performing_institutions = serializers.ListField(child=serializers.DictField())
+#     system_health = serializers.ListField(child=serializers.DictField())
+#     recent_system_activity = RecentActivitySerializer(many=True)
+#     key_performance_indicators = KPISerializer()

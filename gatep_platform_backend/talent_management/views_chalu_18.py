@@ -1063,6 +1063,11 @@ def safe_json_loads(json_string, default_value=None):
 
 # --- MockInterviewStartView.post method ---
 # --- MockInterviewStartView.post method ---
+from .interview_bot.timer_utils import RoundTimer
+from .interview_bot import config
+import time
+
+
 class MockInterviewStartView(APIView):
     permission_classes = [IsAuthenticated]
             
@@ -1160,9 +1165,13 @@ class MockInterviewStartView(APIView):
             # Store the current round and question index in the session
             # This is a simplification; for robustness, these should be in MockInterviewResult
             request.session['current_round_name'] = "communication"
-            request.session['current_question_index'] = 0
+            request.session['current_question_index'] = 0   
+            round_timer = RoundTimer(config.ROUND_TIME_LIMITS["communication"])
+            round_timer.start()
+            request.session['round_start_time'] = round_timer.start_time
+            request.session['round_duration'] = round_timer.duration
             request.session.modified = True 
-
+            
             # Pre-generate questions (this might take a moment)
             # This method will now save the questions directly to mock_interview.pre_generated_questions_data
             interviewer._pre_generate_all_questions()
@@ -1197,6 +1206,10 @@ class MockInterviewStartView(APIView):
             # Update chat history in the bot instance (this will be saved in the DB later if needed)
             interviewer._add_to_chat_history("model", first_question_text)
             # No need to save interviewer to session, only its state via DB
+            remaining_seconds = round_timer.get_remaining_time()
+            minutes = int(remaining_seconds // 60)
+            seconds = int(remaining_seconds % 60)
+            remaining_time_formatted = f"{minutes:02d}:{seconds:02d}"
 
             return Response({
                 "message": f"{welcome_message} {interview_start_message}",
@@ -1204,8 +1217,20 @@ class MockInterviewStartView(APIView):
                 "current_round": "communication",
                 "question_number": 1,
                 "question_text": first_question_text,
+                "remaining_time": remaining_seconds,        # ⏳ in seconds
+                "remaining_time_formatted": remaining_time_formatted,  # ⏳ formatted string
                 "status": mock_interview.status
             }, status=status.HTTP_200_OK)
+        
+
+            # return Response({
+            #     "message": f"{welcome_message} {interview_start_message}",
+            #     "interview_id": mock_interview.id,
+            #     "current_round": "communication",
+            #     "question_number": 1,
+            #     "question_text": first_question_text,
+            #     "status": mock_interview.status
+            # }, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(f"Error initializing AI Interviewer: {e}")
@@ -1213,21 +1238,33 @@ class MockInterviewStartView(APIView):
             mock_interview.status = MockInterviewResult.InterviewStatus.TERMINATED_ERROR
             mock_interview.malpractice_detected = True
             mock_interview.malpractice_reason = f"Error during AI bot initialization: {e}"
-            mock_interview.interview_end_time = timezone.now()
+            mock_interview.interview_end_time = timezone.now()  
             mock_interview.save()
             # Clear session data
             request.session.pop('current_mock_interview_id', None)
             request.session.pop('current_round_name', None)
             request.session.pop('current_question_index', None)
             request.session.modified = True
+            mock_interview.save()
+            request.session.clear()
+
             cleanup_proctor_files_api_context()
             return Response({"error": f"Failed to start interview: {e}", "interview_id": mock_interview.id},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
+# talent_management/views.py
+
+# ... (other imports) ...
+from .interview_bot.timer_utils import RoundTimer
+from .interview_bot import config
+# ... (other imports) ...
+
+
+# --- Replace the entire MockInterviewVerifyIdentityView class with this corrected version ---
 class MockInterviewVerifyIdentityView(APIView):
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         interview_id = request.session.get('current_mock_interview_id')
@@ -1239,60 +1276,73 @@ class MockInterviewVerifyIdentityView(APIView):
 
         try:
             mock_interview = MockInterviewResult.objects.get(id=interview_id, user=request.user)
-            
+
             # Reconstruct AIInterviewer from DB instance
             interviewer = AIInterviewer.load_from_db_instance(mock_interview)
             if not interviewer:
                 return Response({"error": "Failed to reconstruct AI Interviewer instance. Please restart interview."},
                                 status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            # Re-set current state (not strictly needed if load_from_db_instance handles it, but safer)
             interviewer.current_round_name = current_round_name
             interviewer.current_question_index = current_question_index
             interviewer.current_round_questions = interviewer.all_generated_questions[current_round_name]["questions"]
 
-
             is_verified = request.data.get('is_verified', False)
 
-            mock_interview.identity_verified = is_verified
             if not is_verified:
+                mock_interview.identity_verified = False
                 mock_interview.status = MockInterviewResult.InterviewStatus.TERMINATED_ERROR
                 mock_interview.malpractice_detected = True
                 mock_interview.malpractice_reason = "Identity verification failed."
                 mock_interview.interview_end_time = timezone.now()
                 mock_interview.save()
                 # Clear session data
-                request.session.pop('current_mock_interview_id', None)
-                request.session.pop('current_round_name', None)
-                request.session.pop('current_question_index', None)
-                request.session.modified = True
+                request.session.flush()
                 return Response({
                     "message": "Identity verification failed. Interview terminated.",
                     "interview_id": mock_interview.id,
                     "status": mock_interview.status,
                     "reason": mock_interview.malpractice_reason
                 }, status=status.HTTP_403_FORBIDDEN)
-            
-            mock_interview.save()
-            request.session.modified = True # Ensure session is saved
 
-            # If verification is successful, send the actual first question
+            mock_interview.identity_verified = True
+            mock_interview.save()
+
+            # --- TIMER INITIALIZATION ADDED HERE ---
+            # Initialize and start the timer for the first round
+            round_timer = RoundTimer(config.ROUND_TIME_LIMITS.get(current_round_name, 300))
+            round_timer.start()
+
+            # Store timer details in the session for subsequent requests
+            request.session['round_start_time'] = round_timer.start_time
+            request.session['round_duration'] = round_timer.duration
+            request.session.modified = True
+
+            # Calculate remaining time for the response
+            remaining_seconds = round_timer.get_remaining_time()
+            minutes = int(remaining_seconds // 60)
+            seconds = int(remaining_seconds % 60)
+            remaining_time_formatted = f"{minutes:02d}:{seconds:02d}"
+            # --- END OF TIMER LOGIC ---
+
+            # Send the actual first question
             first_question_text = interviewer.current_round_questions[interviewer.current_question_index]["question_text"]
-            
+
             return Response({
                 "message": "Identity verified. We can now proceed with the interview.",
                 "interview_id": mock_interview.id,
                 "current_round": interviewer.current_round_name,
                 "question_number": interviewer.current_question_index + 1,
                 "question_text": first_question_text,
-                "status": mock_interview.status
+                "remaining_time": remaining_seconds,
+                "remaining_time_formatted": remaining_time_formatted,
+                "status": mock_interview.status  # This will correctly be IN_PROGRESS
             }, status=status.HTTP_200_OK)
 
         except MockInterviewResult.DoesNotExist:
             return Response({"error": "Mock interview session not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             print(f"Error during identity verification: {e}")
-            # Ensure mock_interview status is updated even if AIInterviewer reconstruction fails
             if interview_id:
                 try:
                     mock_interview = MockInterviewResult.objects.get(id=interview_id)
@@ -1303,378 +1353,263 @@ class MockInterviewVerifyIdentityView(APIView):
                     mock_interview.save()
                 except MockInterviewResult.DoesNotExist:
                     pass
-            # Clear session data
-            request.session.pop('current_mock_interview_id', None)
-            request.session.pop('current_round_name', None)
-            request.session.pop('current_question_index', None)
-            request.session.modified = True
+            request.session.flush()
             return Response({"error": f"An error occurred during identity verification: {e}"},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+from .interview_bot.timer_utils import RoundTimer
+from .interview_bot import config
 
+from .interview_bot.timer_utils import RoundTimer
+from .interview_bot import config
+from .interview_bot.timer_utils import RoundTimer
+from .interview_bot import config
+import time
+import re
 # --- MockInterviewSubmitAnswerView.post method ---
 class MockInterviewSubmitAnswerView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def _handle_round_transition(self, interviewer, mock_interview, request):
+        """
+        Handles scoring the completed round, determining the next round,
+        and returning the appropriate final response (next question or completion report).
+        """
+        message_to_user = f"Round '{interviewer.current_round_name.replace('_', ' ').title()}' completed. Moving to the next round."
+        
+        # 1. Score the round that just ended
+        print(f"DEBUG: Handling round transition from '{interviewer.current_round_name}'. Scoring round.")
+        relevant_answers_for_scoring = []
+        original_questions_for_completed_round = []
+        if interviewer.current_round_name in ["communication", "psychometric"]:
+            original_questions_for_completed_round = interviewer.all_generated_questions.get(interviewer.current_round_name, {}).get("questions", [])
+        elif interviewer.current_round_name in interviewer.technical_specializations:
+            original_questions_for_completed_round = interviewer.all_generated_questions.get("technical", {}).get("specializations", {}).get(interviewer.current_round_name, {}).get("questions", [])
+        elif interviewer.current_round_name in ["predict_output", "fix_error", "write_program"]:
+            original_questions_for_completed_round = interviewer.all_generated_questions.get("coding", {}).get(interviewer.current_round_name, {}).get("questions", [])
+
+        normalized_completed_round_questions = {re.sub(r'\s+', ' ', q['question_text'].strip().lower()) for q in original_questions_for_completed_round}
+        for qa_pair in interviewer.all_interview_answers:
+            normalized_qa_question = re.sub(r'\s+', ' ', qa_pair.get('question_text', '').strip().lower())
+            if normalized_qa_question in normalized_completed_round_questions:
+                relevant_answers_for_scoring.append(qa_pair)
+        
+        round_scoring_results = interviewer._score_round(
+            interviewer.current_round_name, relevant_answers_for_scoring,
+            specialization=interviewer.current_round_name if interviewer.current_round_name in interviewer.technical_specializations else None,
+            coding_stage=interviewer.current_round_name if interviewer.current_round_name in ["predict_output", "fix_error", "write_program"] else None
+        )
+        
+        # Update scores in the interviewer instance
+        if interviewer.current_round_name in ["predict_output", "fix_error", "write_program"]:
+            if "coding" not in interviewer.round_detailed_results: interviewer.round_detailed_results["coding"] = {}
+            interviewer.round_detailed_results["coding"][interviewer.current_round_name] = round_scoring_results
+            interviewer.round_scores["coding"][interviewer.current_round_name] = round_scoring_results.get('overall_score', 0)
+        elif interviewer.current_round_name in interviewer.technical_specializations:
+            if "technical" not in interviewer.round_detailed_results: interviewer.round_detailed_results['technical'] = {}
+            interviewer.round_detailed_results["technical"][interviewer.current_round_name] = round_scoring_results
+            interviewer.round_scores["technical"][interviewer.current_round_name] = round_scoring_results.get('overall_score', 0)
+        else:
+            interviewer.round_detailed_results[interviewer.current_round_name] = round_scoring_results
+            interviewer.round_scores[interviewer.current_round_name] = round_scoring_results.get('overall_score', 0)
+
+        mock_interview.round_analysis_json = interviewer.round_detailed_results
+        mock_interview.communication_overall_score = interviewer.round_scores.get("communication", 0)
+        mock_interview.psychometric_overall_score = interviewer.round_scores.get("psychometric", 0)
+        mock_interview.technical_specialization_scores = interviewer.round_scores.get("technical", {})
+        mock_interview.save(update_fields=['round_analysis_json', 'communication_overall_score', 'psychometric_overall_score', 'technical_specialization_scores'])
+
+        # 2. Determine the next round or end the interview
+        next_round_name = "interview_complete" # Default to completion
+        if interviewer.current_round_name == "communication":
+            if interviewer.all_generated_questions["psychometric"]["questions"]:
+                next_round_name = "psychometric"
+        elif interviewer.current_round_name == "psychometric":
+            first_tech_spec_with_questions = next((spec for spec in interviewer.technical_specializations if interviewer.all_generated_questions["technical"]["specializations"].get(spec, {}).get("questions")), None)
+            if first_tech_spec_with_questions:
+                next_round_name = first_tech_spec_with_questions
+            else:
+                first_coding_stage_with_questions = next((stage for stage in ["predict_output", "fix_error", "write_program"] if interviewer.all_generated_questions["coding"].get(stage, {}).get("questions")), None)
+                if first_coding_stage_with_questions:
+                    next_round_name = first_coding_stage_with_questions
+        elif interviewer.current_round_name in interviewer.technical_specializations:
+            current_spec_index = interviewer.technical_specializations.index(interviewer.current_round_name)
+            next_tech_spec_with_questions = next((interviewer.technical_specializations[i] for i in range(current_spec_index + 1, len(interviewer.technical_specializations)) if interviewer.all_generated_questions["technical"]["specializations"].get(interviewer.technical_specializations[i], {}).get("questions")), None)
+            if next_tech_spec_with_questions:
+                next_round_name = next_tech_spec_with_questions
+            else:
+                first_coding_stage_with_questions = next((stage for stage in ["predict_output", "fix_error", "write_program"] if interviewer.all_generated_questions["coding"].get(stage, {}).get("questions")), None)
+                if first_coding_stage_with_questions:
+                    next_round_name = first_coding_stage_with_questions
+        elif interviewer.current_round_name in ["predict_output", "fix_error", "write_program"]:
+            coding_stages = ["predict_output", "fix_error", "write_program"]
+            current_stage_index = coding_stages.index(interviewer.current_round_name)
+            next_coding_stage_with_questions = next((coding_stages[i] for i in range(current_stage_index + 1, len(coding_stages)) if interviewer.all_generated_questions["coding"].get(coding_stages[i], {}).get("questions")), None)
+            if next_coding_stage_with_questions:
+                next_round_name = next_coding_stage_with_questions
+
+        # 3. Prepare the response based on whether the interview is complete or not
+        if next_round_name == "interview_complete":
+            interviewer._score_language_proficiency(interviewer.all_interview_answers)
+            scores = [s for s in interviewer.round_scores.values() if isinstance(s, (int, float)) and s > 0]
+            for stage in interviewer.round_scores.get("coding", {}).values(): scores.append(stage)
+            for spec in interviewer.round_scores.get("technical", {}).values(): scores.append(spec)
+            scores.append(interviewer.language_score)
+            interviewer.global_readiness_score = int(sum(scores) / len(scores)) if scores else 0
+            interviewer._generate_final_report()
+            request.session.flush() # Clear the entire session
+            cleanup_proctor_files_api_context()
+            return Response({
+                "message": interviewer.all_generated_questions["interview_complete_message"],
+                "interview_id": mock_interview.id, "status": mock_interview.status,
+                "global_readiness_score": mock_interview.global_readiness_score,
+                "report_url": request.build_absolute_uri(f'/api/mock-interview/report/{mock_interview.id}/'),
+            }, status=status.HTTP_200_OK)
+        else:
+            interviewer.current_round_name = next_round_name
+            interviewer.current_question_index = 0
+            # Reset timer for the new round
+            round_timer = RoundTimer(config.ROUND_TIME_LIMITS.get(next_round_name.split('_')[0], 300))
+            round_timer.start()
+            request.session['round_start_time'] = round_timer.start_time
+            request.session['round_duration'] = round_timer.duration
+            # Get next question text
+            if next_round_name in ["communication", "psychometric"]:
+                interviewer.current_round_questions = interviewer.all_generated_questions[next_round_name]["questions"]
+            elif next_round_name in interviewer.technical_specializations:
+                 interviewer.current_round_questions = interviewer.all_generated_questions["technical"]["specializations"][next_round_name]["questions"]
+            else: # Coding stages
+                 interviewer.current_round_questions = interviewer.all_generated_questions["coding"][next_round_name]["questions"]
+            next_question_text = interviewer.current_round_questions[0]["question_text"]
+            interviewer._add_to_chat_history("model", next_question_text)
+            # Update session
+            request.session['current_round_name'] = interviewer.current_round_name
+            request.session['current_question_index'] = interviewer.current_question_index
+            request.session.modified = True
+            return Response({
+                "message": message_to_user, "interview_id": mock_interview.id,
+                "current_round": interviewer.current_round_name,
+                "question_number": 1, "question_text": next_question_text, "status": mock_interview.status,
+                "remaining_time": round_timer.get_remaining_time(),
+                "remaining_time_formatted": f"{int(round_timer.get_remaining_time() // 60):02d}:{int(round_timer.get_remaining_time() % 60):02d}"
+            }, status=status.HTTP_200_OK)
+
+    def _skip_to_next_round(self, interview_id, request):
+        """ Handles the logic when a round's timer expires. Deduces current round from DB state. """
+        try:
+            mock_interview = MockInterviewResult.objects.get(id=interview_id, user=request.user)
+            interviewer = AIInterviewer.load_from_db_instance(mock_interview)
+            if not interviewer:
+                return Response({"error": "Failed to load interview state."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # --- ROBUST ROUND DEDUCTION LOGIC ---
+            completed_rounds = set((mock_interview.round_analysis_json or {}).keys())
+            if "technical" in completed_rounds:
+                completed_rounds.update(mock_interview.round_analysis_json["technical"].keys())
+            if "coding" in completed_rounds:
+                completed_rounds.update(mock_interview.round_analysis_json["coding"].keys())
+
+            full_round_sequence = ["communication", "psychometric"] + interviewer.technical_specializations + ["predict_output", "fix_error", "write_program"]
+            
+            deduced_current_round = "interview_complete" # Default if all are done
+            for round_name in full_round_sequence:
+                if round_name not in completed_rounds:
+                    deduced_current_round = round_name
+                    break
+            
+            if deduced_current_round == "interview_complete":
+                 # This case shouldn't happen if timer is active, but as a fallback:
+                return Response({"message": "Interview appears to be complete."}, status=status.HTTP_200_OK)
+
+            print(f"DEBUG: Timer expired. Deduced current round as '{deduced_current_round}' from DB state.")
+            interviewer.current_round_name = deduced_current_round
+            # Call the centralized transition logic
+            return self._handle_round_transition(interviewer, mock_interview, request)
+        except MockInterviewResult.DoesNotExist:
+            return Response({"error": "Active interview not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": f"An error occurred while skipping round: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     def post(self, request):
         interview_id = request.session.get('current_mock_interview_id')
+        
+        if not interview_id:
+            try:
+                latest_interview = MockInterviewResult.objects.filter(user=request.user, status=MockInterviewResult.InterviewStatus.IN_PROGRESS).latest('created_at')
+                interview_id = latest_interview.id
+                request.session['current_mock_interview_id'] = interview_id
+                print(f"WARNING: Recovered active interview ID {interview_id} from DB.")
+            except MockInterviewResult.DoesNotExist:
+                pass
+
         current_round_name = request.session.get('current_round_name')
         current_question_index = request.session.get('current_question_index')
+        start_time = request.session.get('round_start_time')
+        duration = request.session.get('round_duration')
 
+        if start_time and duration:
+            if time.time() - start_time >= duration:
+                if not interview_id:
+                     return Response({"error": "No active interview session found. Please start a new interview."}, status=status.HTTP_400_BAD_REQUEST)
+                # The 'current_round_name' from session is now optional/untrusted for this call
+                return self._skip_to_next_round(interview_id, request)
+        
         if not interview_id or current_round_name is None or current_question_index is None:
-            return Response({"error": "No active interview session found. Please start a new interview."},
-                            status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "No active interview session found. Please start a new interview."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             mock_interview = MockInterviewResult.objects.get(id=interview_id, user=request.user)
-            
-            # Reconstruct AIInterviewer from DB instance
+            if mock_interview.status != MockInterviewResult.InterviewStatus.IN_PROGRESS:
+                return Response({"message": f"Interview is not in progress. Current status: {mock_interview.status}"}, status=status.HTTP_400_BAD_REQUEST)
+
             interviewer = AIInterviewer.load_from_db_instance(mock_interview)
             if not interviewer:
-                return Response({"error": "Failed to reconstruct AI Interviewer instance. Please restart interview."},
-                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"error": "Failed to reconstruct AI Interviewer instance."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            # Re-set current state for the interviewer instance
             interviewer.current_round_name = current_round_name
             interviewer.current_question_index = current_question_index
             
-            # Get the questions for the current round from the pre-generated data
-            questions_for_current_round = []
-            if current_round_name == "communication" or current_round_name == "psychometric":
-                questions_for_current_round = interviewer.all_generated_questions[current_round_name]["questions"]
-            elif current_round_name in interviewer.technical_specializations:
-                questions_for_current_round = interviewer.all_generated_questions["technical"]["specializations"].get(current_round_name, {}).get("questions", [])
-            elif current_round_name in ["predict_output", "fix_error", "write_program"]: # Coding stages
-                questions_for_current_round = interviewer.all_generated_questions["coding"][current_round_name]["questions"]
-            
-            interviewer.current_round_questions = questions_for_current_round # Ensure the interviewer has the correct list
-
-            if mock_interview.status != MockInterviewResult.InterviewStatus.IN_PROGRESS:
-                return Response({
-                    "message": f"Interview is not in progress. Current status: {mock_interview.status}",
-                    "interview_id": mock_interview.id,
-                    "status": mock_interview.status
-                }, status=status.HTTP_400_BAD_REQUEST)
-
-            # --- DEBUGGING ADDITION (Keep for now to confirm input) ---
-            print(f"DEBUG VIEWS: Received request data: {request.data}")
-            candidate_answer = request.data.get('answer_text', '').strip()
-            print(f"DEBUG VIEWS: Extracted candidate_answer: '{candidate_answer}'")
-            # --- DEBUGGING ADDITION END ---
-            
-            malpractice_status_from_file = read_malpractice_status_api_context()
-            if malpractice_status_from_file.startswith("TERMINATED") and malpractice_status_from_file != "TERMINATED_NORMAL_EXIT":
+            malpractice_status = read_malpractice_status_api_context()
+            if malpractice_status.startswith("TERMINATED") and malpractice_status != "TERMINATED_NORMAL_EXIT":
                 interviewer._check_malpractice_status(read_malpractice_status_api_context)
-                request.session.pop('current_mock_interview_id', None)
-                request.session.pop('current_round_name', None)
-                request.session.pop('current_question_index', None)
-                request.session.modified = True
+                request.session.flush()
                 cleanup_proctor_files_api_context()
-                return Response({
-                    "message": "Interview terminated due to detected malpractice.",
-                    "reason": mock_interview.malpractice_reason,
-                    "interview_id": mock_interview.id,
-                    "status": mock_interview.status
-                }, status=status.HTTP_403_FORBIDDEN)
+                return Response({"message": "Interview terminated due to detected malpractice.", "reason": mock_interview.malpractice_reason, "status": mock_interview.status}, status=status.HTTP_403_FORBIDDEN)
 
-            # Check if current question index is valid for the current round
-            if not questions_for_current_round or current_question_index >= len(questions_for_current_round):
-                print(f"DEBUG VIEWS: No valid current question found for {current_round_name} at index {current_question_index}. Attempting to transition.")
-                pass 
-            else:
-                # Get the current question details
-                current_question_dict = questions_for_current_round[current_question_index]
-                current_question_text = current_question_dict["question_text"]
-                current_question_speak_text = current_question_dict["speak_text"]
-                
-                # Directly record the answer using the new method
-                interviewer.record_answer(current_question_text, current_question_speak_text, candidate_answer)
-                
-                # --- NEW DEBUGGING ADDITION START ---
-                print(f"DEBUG VIEWS: State of interviewer.all_interview_answers BEFORE save:")
-                for i, qa_pair in enumerate(interviewer.all_interview_answers):
-                    print(f"  Q{i+1}: '{qa_pair.get('question_text', '')[:50]}...' A: '{qa_pair.get('answer', '')}'")
-                # --- NEW DEBUGGING ADDITION END ---
+            questions_for_current_round = []
+            if current_round_name in ["communication", "psychometric"]:
+                questions_for_current_round = interviewer.all_generated_questions.get(current_round_name, {}).get("questions", [])
+            elif current_round_name in interviewer.technical_specializations:
+                questions_for_current_round = interviewer.all_generated_questions.get("technical", {}).get("specializations", {}).get(current_round_name, {}).get("questions", [])
+            elif current_round_name in ["predict_output", "fix_error", "write_program"]:
+                questions_for_current_round = interviewer.all_generated_questions.get("coding", {}).get(current_round_name, {}).get("questions", [])
 
-                # IMPORTANT: Persist the full Q&A transcript after each answer
+            if current_question_index < len(questions_for_current_round):
+                current_q_dict = questions_for_current_round[current_question_index]
+                candidate_answer = request.data.get('answer_text', '').strip()
+                interviewer.record_answer(current_q_dict["question_text"], current_q_dict["speak_text"], candidate_answer)
                 mock_interview.full_qa_transcript = interviewer.all_interview_answers
                 mock_interview.save(update_fields=['full_qa_transcript'])
-
                 interviewer.current_question_index += 1
             
-            next_question_text = None
-            next_round_name = interviewer.current_round_name
-            message_to_user = "Answer received. Moving to the next question."
-
-            # Determine if we are at the end of the current round
             if interviewer.current_question_index >= len(questions_for_current_round):
-                print(f"DEBUG VIEWS: End of round '{interviewer.current_round_name}'. Scoring round.")
-
-                relevant_answers_for_scoring = []
-                original_questions_for_completed_round = []
-                if interviewer.current_round_name == "communication" or interviewer.current_round_name == "psychometric":
-                    original_questions_for_completed_round = interviewer.all_generated_questions[interviewer.current_round_name]["questions"]
-                elif interviewer.current_round_name in interviewer.technical_specializations:
-                    original_questions_for_completed_round = interviewer.all_generated_questions["technical"]["specializations"].get(interviewer.current_round_name, {}).get("questions", [])
-                elif interviewer.current_round_name in ["predict_output", "fix_error", "write_program"]:
-                    original_questions_for_completed_round = interviewer.all_generated_questions["coding"][interviewer.current_round_name]["questions"]
-
-                normalized_completed_round_questions = {re.sub(r'\s+', ' ', q['question_text'].strip().lower()) for q in original_questions_for_completed_round}
-
-                for qa_pair in interviewer.all_interview_answers:
-                    normalized_qa_question = re.sub(r'\s+', ' ', qa_pair.get('question_text', '').strip().lower())
-                    if normalized_qa_question in normalized_completed_round_questions:
-                        relevant_answers_for_scoring.append(qa_pair)
+                return self._handle_round_transition(interviewer, mock_interview, request)
+            else:
+                next_q_dict = questions_for_current_round[interviewer.current_question_index]
+                interviewer._add_to_chat_history("model", next_q_dict["question_text"])
+                request.session['current_question_index'] = interviewer.current_question_index
+                request.session.modified = True
                 
-                round_scoring_results = interviewer._score_round(
-                    interviewer.current_round_name,
-                    relevant_answers_for_scoring,
-                    specialization=interviewer.current_round_name if interviewer.current_round_name in interviewer.technical_specializations else None,
-                    coding_stage=interviewer.current_round_name if interviewer.current_round_name in ["predict_output", "fix_error", "write_program"] else None
-                )
-                
-                if interviewer.current_round_name == "coding":
-                    if "coding" not in interviewer.round_detailed_results:
-                        interviewer.round_detailed_results["coding"] = {}
-                    interviewer.round_detailed_results["coding"][interviewer.current_round_name] = {
-                        "overall_score": round_scoring_results['overall_score'],
-                        "round_summary": round_scoring_results['round_summary'],
-                        "questions": round_scoring_results['questions']
-                    }
-                    interviewer.round_scores["coding"][interviewer.current_round_name] = round_scoring_results['overall_score']
-                elif interviewer.current_round_name in interviewer.technical_specializations:
-                    if "technical" not in interviewer.round_detailed_results:
-                        interviewer.round_detailed_results['technical'] = {}
-                    interviewer.round_detailed_results["technical"][interviewer.current_round_name] = {
-                        "overall_score": round_scoring_results['overall_score'],
-                        "round_summary": round_scoring_results['round_summary'],
-                        "questions": round_scoring_results['questions']
-                    }
-                    interviewer.round_scores["technical"][interviewer.current_round_name] = round_scoring_results['overall_score']
-                else: 
-                    interviewer.round_detailed_results[interviewer.current_round_name] = {
-                        "overall_score": round_scoring_results['overall_score'],
-                        "round_summary": round_scoring_results['round_summary'],
-                        "questions": round_scoring_results['questions']
-                    }
-                    interviewer.round_scores[interviewer.current_round_name] = round_scoring_results['overall_score']
-
-                mock_interview.round_analysis_json = interviewer.round_detailed_results
-                mock_interview.communication_overall_score = interviewer.round_scores.get("communication", 0)
-                mock_interview.psychometric_overall_score = interviewer.round_scores.get("psychometric", 0)
-                mock_interview.technical_specialization_scores = interviewer.round_scores["technical"]
-
-                mock_interview.save(update_fields=[
-                    'round_analysis_json', 
-                    'communication_overall_score', 
-                    'psychometric_overall_score', 
-                    'technical_specialization_scores'
-                ])
-
-                message_to_user = f"Round '{interviewer.current_round_name.replace('_', ' ').title()}' completed. Moving to the next round."
-                
-                if interviewer.current_round_name == "communication":
-                    next_round_name = "psychometric"
-                    interviewer.current_round_name = next_round_name
-                    interviewer.current_question_index = 0
-                    if not interviewer.all_generated_questions["psychometric"]["questions"]:
-                        interviewer.current_round_questions = []
-                    else:
-                        interviewer.current_round_questions = interviewer.all_generated_questions["psychometric"]["questions"]
-                elif interviewer.current_round_name == "psychometric":
-                    has_technical_questions = False
-                    if interviewer.technical_specializations:
-                        for spec in interviewer.technical_specializations:
-                            if interviewer.all_generated_questions["technical"]["specializations"].get(spec, {}).get("questions"):
-                                has_technical_questions = True
-                                break
-                    if has_technical_questions:
-                        first_tech_spec_with_questions = None
-                        for spec in interviewer.technical_specializations:
-                            if interviewer.all_generated_questions["technical"]["specializations"].get(spec, {}).get("questions"):
-                                first_tech_spec_with_questions = spec
-                                break
-                        next_round_name = first_tech_spec_with_questions
-                        interviewer.technical_current_specialization_index = interviewer.technical_specializations.index(first_tech_spec_with_questions)
-                        interviewer.current_round_name = next_round_name
-                        interviewer.current_round_questions = interviewer.all_generated_questions["technical"]["specializations"].get(interviewer.current_round_name, {}).get("questions", [])
-                        interviewer.current_question_index = 0
-                        message_to_user = f"Starting Technical Skills Round, focusing on {interviewer.current_round_name}."
-                    else:
-                        coding_stages_with_questions = [
-                            stage for stage in ["predict_output", "fix_error", "write_program"]
-                            if interviewer.all_generated_questions["coding"].get(stage, {}).get("questions")
-                        ]
-                        if coding_stages_with_questions:
-                            next_round_name = coding_stages_with_questions[0]
-                            interviewer.coding_current_stage_index = list(interviewer.all_generated_questions["coding"].keys()).index(next_round_name)
-                            interviewer.current_round_name = next_round_name
-                            interviewer.current_round_questions = interviewer.all_generated_questions["coding"][interviewer.current_round_name]["questions"]
-                            interviewer.current_question_index = 0
-                            message_to_user = f"Starting Coding Skills Round - {interviewer.current_round_name.replace('_', ' ').title()} stage."
-                        else:
-                            next_round_name = "interview_complete"
-                            message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-                elif interviewer.current_round_name in interviewer.technical_specializations:
-                    current_spec_index = interviewer.technical_specializations.index(interviewer.current_round_name)
-                    
-                    next_tech_spec_with_questions = None
-                    for i in range(current_spec_index + 1, len(interviewer.technical_specializations)):
-                        spec = interviewer.technical_specializations[i]
-                        if interviewer.all_generated_questions["technical"]["specializations"].get(spec, {}).get("questions"):
-                            next_tech_spec_with_questions = spec
-                            interviewer.technical_current_specialization_index = i
-                            break
-
-                    if next_tech_spec_with_questions:
-                        next_round_name = next_tech_spec_with_questions
-                        interviewer.current_round_name = next_round_name
-                        interviewer.current_round_questions = interviewer.all_generated_questions["technical"]["specializations"].get(interviewer.current_round_name, {}).get("questions", [])
-                        interviewer.current_question_index = 0
-                        message_to_user = f"Moving to Technical Sub-Round: {interviewer.current_round_name}."
-                    else: 
-                        coding_stages_with_questions = [
-                            stage for stage in ["predict_output", "fix_error", "write_program"]
-                            if interviewer.all_generated_questions["coding"].get(stage, {}).get("questions")
-                        ]
-                        if coding_stages_with_questions:
-                            next_round_name = coding_stages_with_questions[0]
-                            interviewer.coding_current_stage_index = list(interviewer.all_generated_questions["coding"].keys()).index(next_round_name)
-                            interviewer.current_round_name = next_round_name
-                            interviewer.current_round_questions = interviewer.all_generated_questions["coding"][interviewer.current_round_name]["questions"]
-                            interviewer.current_question_index = 0
-                            message_to_user = f"Starting Coding Skills Round - {interviewer.current_round_name.replace('_', ' ').title()} stage."
-                        else:
-                            next_round_name = "interview_complete"
-                            message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-                elif interviewer.current_round_name in ["predict_output", "fix_error", "write_program"]:
-                    coding_stages_keys_with_questions = [
-                        stage for stage in ["predict_output", "fix_error", "write_program"]
-                        if interviewer.all_generated_questions["coding"].get(stage, {}).get("questions")
-                    ]
-                    
-                    if not coding_stages_keys_with_questions:
-                        next_round_name = "interview_complete"
-                        message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-                    else:
-                        try:
-                            current_coding_stage_index_in_filtered = coding_stages_keys_with_questions.index(interviewer.current_round_name)
-                            if current_coding_stage_index_in_filtered + 1 < len(coding_stages_keys_with_questions):
-                                next_round_name = coding_stages_keys_with_questions[current_coding_stage_index_in_filtered + 1]
-                                interviewer.current_round_name = next_round_name
-                                interviewer.current_round_questions = interviewer.all_generated_questions["coding"][interviewer.current_round_name]["questions"]
-                                interviewer.current_question_index = 0
-                                message_to_user = f"Moving to Coding Stage: {interviewer.current_round_name.replace('_', ' ').title()}."
-                            else:
-                                next_round_name = "interview_complete"
-                                message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-                        except ValueError:
-                             next_round_name = "interview_complete"
-                             message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-                else:
-                    next_round_name = "interview_complete"
-                    message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-
-
-                if next_round_name == "interview_complete":
-                    interviewer._score_language_proficiency(interviewer.all_interview_answers)
-                    
-                    total_score_sum = 0
-                    num_scores = 0
-
-                    if "communication" in interviewer.round_scores:
-                        total_score_sum += interviewer.round_scores["communication"]
-                        num_scores += 1
-                    if "psychometric" in interviewer.round_scores:
-                        total_score_sum += interviewer.round_scores["psychometric"]
-                        num_scores += 1
-
-                    coding_stage_scores = [score for score in interviewer.round_scores["coding"].values()]
-                    if coding_stage_scores:
-                        avg_coding_score = sum(coding_stage_scores) / len(coding_stage_scores)
-                        total_score_sum += avg_coding_score
-                        num_scores += 1
-
-                    technical_specialization_scores = [score for score in interviewer.round_scores["technical"].values()]
-                    if technical_specialization_scores:
-                        avg_technical_score = sum(technical_specialization_scores) / len(technical_specialization_scores)
-                        total_score_sum += avg_technical_score
-                        num_scores += 1
-                    
-                    total_score_sum += interviewer.language_score
-                    num_scores += 1
-
-                    if num_scores > 0:
-                        interviewer.global_readiness_score = int(total_score_sum / num_scores)
-                    else:
-                        interviewer.global_readiness_score = 0
-
-                    interviewer._generate_final_report()
-
-                    request.session.pop('current_mock_interview_id', None)
-                    request.session.pop('current_round_name', None)
-                    request.session.pop('current_question_index', None)
-                    request.session.modified = True
-                    cleanup_proctor_files_api_context()
-
-                    return Response({
-                        "message": message_to_user,
-                        "interview_id": mock_interview.id,
-                        "status": mock_interview.status,
-                        "global_readiness_score": mock_interview.global_readiness_score,
-                        "report_url": request.build_absolute_uri(f'/api/mock-interview/report/{mock_interview.id}/')
-                    }, status=status.HTTP_200_OK)
-                
-                if interviewer.current_round_questions and interviewer.current_question_index < len(interviewer.current_round_questions):
-                    next_question_text = interviewer.current_round_questions[interviewer.current_question_index]["question_text"]
-                    interviewer._add_to_chat_history("model", next_question_text)
-                else:
-                    next_round_name = "interview_complete"
-                    message_to_user = interviewer.all_generated_questions["interview_complete_message"]
-                    
-                    interviewer._score_language_proficiency(interviewer.all_interview_answers)
-                    total_score_sum = 0
-                    num_scores = 0
-                    if "communication" in interviewer.round_scores: total_score_sum += interviewer.round_scores["communication"]; num_scores += 1
-                    if "psychometric" in interviewer.round_scores: total_score_sum += interviewer.round_scores["psychometric"]; num_scores += 1
-                    coding_stage_scores = [score for score in interviewer.round_scores["coding"].values()]
-                    if coding_stage_scores: avg_coding_score = sum(coding_stage_scores) / len(coding_stage_scores); total_score_sum += avg_coding_score; num_scores += 1
-                    technical_specialization_scores = [score for score in interviewer.round_scores["technical"].values()]
-                    if technical_specialization_scores: avg_technical_score = sum(technical_specialization_scores) / len(technical_specialization_scores); total_score_sum += avg_technical_score; num_scores += 1
-                    total_score_sum += interviewer.language_score; num_scores += 1
-                    interviewer.global_readiness_score = int(total_score_sum / num_scores) if num_scores > 0 else 0
-
-                    interviewer._generate_final_report()
-
-                    request.session.pop('current_mock_interview_id', None)
-                    request.session.pop('current_round_name', None)
-                    request.session.pop('current_question_index', None)
-                    request.session.modified = True
-                    cleanup_proctor_files_api_context()
-                    return Response({
-                        "message": message_to_user,
-                        "interview_id": mock_interview.id,
-                        "status": mock_interview.status,
-                        "global_readiness_score": mock_interview.global_readiness_score,
-                        "report_url": request.build_absolute_uri(f'/api/mock-interview/report/{mock_interview.id}/')
-                    }, status=status.HTTP_200_OK)
-
-            else: 
-                next_question_text = interviewer.current_round_questions[interviewer.current_question_index]["question_text"]
-                interviewer._add_to_chat_history("model", next_question_text)
-            
-            request.session['current_round_name'] = interviewer.current_round_name
-            request.session['current_question_index'] = interviewer.current_question_index
-            request.session.modified = True 
-
-            return Response({
-                "message": message_to_user,
-                "interview_id": mock_interview.id,
-                "current_round": interviewer.current_round_name,
-                "question_number": interviewer.current_question_index + 1,
-                "question_text": next_question_text,
-                "status": mock_interview.status
-            }, status=status.HTTP_200_OK)
+                remaining_seconds = max(0, duration - (time.time() - start_time)) if start_time and duration else 0
+                return Response({
+                    "message": "Answer received. Moving to the next question.",
+                    "interview_id": mock_interview.id,
+                    "current_round": interviewer.current_round_name,
+                    "question_number": interviewer.current_question_index + 1,
+                    "question_text": next_q_dict["question_text"], "status": mock_interview.status,
+                    "remaining_time": remaining_seconds,
+                    "remaining_time_formatted": f"{int(remaining_seconds // 60):02d}:{int(remaining_seconds % 60):02d}",
+                }, status=status.HTTP_200_OK)
 
         except MockInterviewResult.DoesNotExist:
             return Response({"error": "Mock interview session not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -1684,20 +1619,16 @@ class MockInterviewSubmitAnswerView(APIView):
                 try:
                     mock_interview = MockInterviewResult.objects.get(id=interview_id)
                     mock_interview.status = MockInterviewResult.InterviewStatus.TERMINATED_ERROR
-                    mock_interview.malpractice_detected = True
-                    mock_interview.malpractice_reason = f"System error during answer submission: {e}"
+                    mock_interview.malpractice_reason = f"System error: {e}"
                     mock_interview.interview_end_time = timezone.now()
                     mock_interview.save()
-                except MockInterviewResult.DoesNotExist:
-                    pass
-            
-            request.session.pop('current_mock_interview_id', None)
-            request.session.pop('current_round_name', None)
-            request.session.pop('current_question_index', None)
-            request.session.modified = True
+                except MockInterviewResult.DoesNotExist: pass
+            request.session.flush()
             cleanup_proctor_files_api_context()
-            return Response({"error": f"An error occurred while processing your answer: {e}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"error": f"An error occurred: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
 # --- MockInterviewSubmitAnswerView.post method ---
 class MockInterviewReportView(APIView):
     permission_classes = [IsAuthenticated]
@@ -1940,162 +1871,3 @@ class FullInterviewPhotoCheckAPIView(APIView):
                 {"error": f"Internal server error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
-
-
-
-
-
-
-
-
-
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from .models import Resume, CustomUser, MockInterviewResult, SkillsPassport
-from .serializers import MockInterviewResultSerializer, FullResumeSerializer, SkillsPassportSerializer
-from .ai_passport_generator import generate_skills_passport_data
-
-# ... (all your other views) ...
-
-class SkillsPassportView(APIView):
-    """
-    API for generating and retrieving a user's Skills Passport.
-    - POST: Generates a new passport based on the latest completed interview.
-            If a failed/pending passport exists, it will be deleted to allow a retry.
-    - GET:  Retrieves the latest successfully completed passport.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, *args, **kwargs):
-        """
-        Retrieves the latest successfully COMPLETED Skills Passport for the authenticated user.
-        """
-        passport = SkillsPassport.objects.filter(
-            user=request.user,
-            status=SkillsPassport.PassportStatus.COMPLETED
-        ).order_by('-created_at').first()
-
-        if not passport:
-            return Response(
-                {"error": "No completed Skills Passport found. Please complete a mock interview and generate one."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-            
-        serializer = SkillsPassportSerializer(passport)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    def post(self, request, *args, **kwargs):
-        """
-        Generates a new Skills Passport. If a previously failed or pending passport exists
-        for the latest interview, it will be deleted and a new attempt will be made.
-        """
-        user = request.user
-        
-        # 1. Find the latest completed mock interview for the user
-        latest_interview = MockInterviewResult.objects.filter(
-            user=user,
-            status=MockInterviewResult.InterviewStatus.COMPLETED
-        ).order_by('-created_at').first()
-
-        if not latest_interview:
-            return Response({"error": "No completed mock interview found to generate a passport from."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 2. Check for an existing passport for this specific interview to handle retries
-        existing_passport = SkillsPassport.objects.filter(source_interview=latest_interview).first()
-
-        if existing_passport:
-            # If it's already successfully completed, prevent re-generation.
-            if existing_passport.status == SkillsPassport.PassportStatus.COMPLETED:
-                return Response({
-                    "message": "A completed Skills Passport for this interview already exists. Use the GET endpoint to retrieve it."
-                }, status=status.HTTP_409_CONFLICT)
-            
-            # If it's stuck in a FAILED or PENDING state, delete it to allow a clean retry.
-            else:
-                print(f"Deleting stale passport (ID: {existing_passport.id}, Status: {existing_passport.status}) to retry generation.")
-                existing_passport.delete()
-        
-        # 3. Fetch the user's resume (required for generation)
-        try:
-            resume = Resume.objects.get(talent_id=user)
-        except Resume.DoesNotExist:
-            return Response({"error": "Resume not found. A resume is required to generate a passport."}, status=status.HTTP_404_NOT_FOUND)
-
-        # 4. Create a new placeholder passport entry with PENDING status
-        # This is wrapped in the main try/except block to handle any potential errors.
-        passport = None
-        try:
-            passport = SkillsPassport.objects.create(
-                user=user,
-                source_interview=latest_interview,
-                status=SkillsPassport.PassportStatus.PENDING
-            )
-
-            # 5. Begin the AI generation process
-            # (For production, this block should be in a background task e.g., Celery)
-            
-            # Serialize the source data for the AI prompt
-            interview_serializer = MockInterviewResultSerializer(latest_interview)
-            # Pass the request context to the resume serializer to build full URLs
-            resume_serializer = FullResumeSerializer(resume, context={'request': request})
-            
-            # Call the AI generation service
-            ai_generated_data = generate_skills_passport_data(
-                interview_report_json=interview_serializer.data,
-                resume_json=resume_serializer.data
-            )
-
-            if not ai_generated_data:
-                # If AI fails, update status to FAILED and return an error
-                passport.status = SkillsPassport.PassportStatus.FAILED
-                passport.save()
-                return Response({"error": "AI failed to generate passport data. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            # 6. Assemble all data and save to the passport object
-            # - Get scores from the interview report
-            passport.communication_skills_score = latest_interview.communication_overall_score
-            tech_scores = list(latest_interview.technical_specialization_scores.values())
-            passport.technical_readiness_score = int(sum(tech_scores) / len(tech_scores)) if tech_scores else 0
-            passport.specialization_scores = latest_interview.technical_specialization_scores
-
-            # - Get data from the AI
-            passport.relocation_score = ai_generated_data.get('relocation_score', 0)
-            passport.cultural_adaptability_score = ai_generated_data.get('cultural_adaptability_score', 0)
-            passport.ai_powered_summary = ai_generated_data.get('ai_powered_summary', '')
-            passport.key_strengths = ai_generated_data.get('key_strengths', [])
-            passport.frameworks_tools = ai_generated_data.get('frameworks_tools', [])
-
-            # - Calculate the final Global Readiness Score
-            total_score = (
-                passport.relocation_score +
-                passport.cultural_adaptability_score +
-                passport.communication_skills_score +
-                passport.technical_readiness_score
-            )
-            # Avoid division by zero if all scores are 0
-            passport.global_readiness_score = int(total_score / 4) if total_score > 0 else 0
-            
-            # 7. Finalize the passport
-            passport.status = SkillsPassport.PassportStatus.COMPLETED
-            passport.save()
-
-            # Return the newly created passport data
-            final_serializer = SkillsPassportSerializer(passport)
-            return Response(final_serializer.data, status=status.HTTP_201_CREATED)
-
-        except Exception as e:
-            # If any unexpected error occurs during generation, mark as FAILED
-            # This check ensures we don't try to save a passport that failed to be created
-            if passport:
-                passport.status = SkillsPassport.PassportStatus.FAILED
-                passport.save()
-            print(f"Error during passport generation: {e}")
-            return Response({"error": f"An unexpected error occurred during passport generation: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-

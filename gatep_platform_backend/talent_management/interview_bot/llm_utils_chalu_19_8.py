@@ -36,7 +36,7 @@ def call_llm_api(prompt_text, current_conversation_history=None, output_max_toke
     payload = {
         "model": config.GROQ_MODEL_NAME, # Use Groq model name
         "messages": messages_for_api,
-        "temperature": 0.9, # Adjust temperature for creativity/randomness
+        "temperature": 0.7, # Adjust temperature for creativity/randomness
         "max_tokens": output_max_tokens, # Use the dynamic max_tokens
     }
 

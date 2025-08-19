@@ -396,44 +396,20 @@ class AIInterviewer:
         if not mock_interview_db_instance:
             return None
         # Determine the AIML specialization list to pass to __init__
-        # Prioritize the JSONField (list) if available, otherwise default to empty list+
-
-
-
-
-
-
+        # Prioritize the JSONField (list) if available, otherwise default to empty list
         loaded_aiml_specializations_list = mock_interview_db_instance.aiml_specialization
         if not isinstance(loaded_aiml_specializations_list, list):
             # Fallback for old data or if JSONField was somehow not a list, try to parse string
             if mock_interview_db_instance.aiml_specialization_input:
                 loaded_aiml_specializations_list = [s.strip() for s in mock_interview_db_instance.aiml_specialization_input.split(',') if s.strip()]
             else:
-                loaded_aiml_specializations_list = [] #+ Default to empty list if no source
- 
-
-
-
-
-
-
+                loaded_aiml_specializations_list = [] # Default to empty list if no source
 
         # Create a new AIInterviewer instance
         interviewer = cls(
             position=mock_interview_db_instance.position_applied,
             experience=mock_interview_db_instance.candidate_experience,
-
-
-
-
-            #- aiml_specialization=mock_interview_db_instance.aiml_specialization_input,
-
-
-
-
-            aiml_specialization=loaded_aiml_specializations_list, #+ CORRECT: Pass the list here # Use input string for init
-            
-            
+            aiml_specialization=loaded_aiml_specializations_list, # Pass the list here
             mock_interview_result_instance=mock_interview_db_instance
         )
 
@@ -472,12 +448,8 @@ class AIInterviewer:
         else:
             print(f"DEBUG: No full Q&A transcript found in DB for interview ID: {mock_interview_db_instance.id}.")
         
-
-
         # Reconstruct round scores and detailed results from round_analysis_json
-
-
-       # Initialize round_scores for reconstruction, especially for nested structures+
+        # Initialize round_scores for reconstruction, especially for nested structures
         interviewer.round_scores = {
             "communication": 0,
             "psychometric": 0,
@@ -485,20 +457,20 @@ class AIInterviewer:
             "coding": {}     # Initialize coding as a dict for stage scores
         }
         interviewer.round_detailed_results = mock_interview_db_instance.round_analysis_json if mock_interview_db_instance.round_analysis_json else {}
-        #+-interviewer.round_detailed_results = mock_interview_db_instance.round_analysis_json
         
-        # Reconstruct round_scores from round_detailed_results
-        for round_key, round_data in interviewer.round_detailed_results.items():
-            if round_key == "coding" and isinstance(round_data, dict):
-                for stage_key, stage_data in round_data.items():
-                    if 'overall_score' in stage_data:
-                        interviewer.round_scores["coding"][stage_key] = stage_data['overall_score']
-            elif round_key == "technical" and isinstance(round_data, dict):
-                for spec_key, spec_data in round_data.items():
-                    if 'overall_score' in spec_data:
-                        interviewer.round_scores["technical"][spec_key] = spec_data['overall_score']
-            elif 'overall_score' in round_data:
-                interviewer.round_scores[round_key] = round_data['overall_score']
+        # Reconstruct round_scores from round_detailed_results (more robustly)
+        if isinstance(interviewer.round_detailed_results, dict):
+            for round_key, round_data in interviewer.round_detailed_results.items():
+                if round_key == "coding" and isinstance(round_data, dict):
+                    for stage_key, stage_data in round_data.items():
+                        if isinstance(stage_data, dict) and 'overall_score' in stage_data:
+                            interviewer.round_scores["coding"][stage_key] = stage_data['overall_score']
+                elif round_key == "technical" and isinstance(round_data, dict):
+                    for spec_key, spec_data in round_data.items():
+                        if isinstance(spec_data, dict) and 'overall_score' in spec_data:
+                            interviewer.round_scores["technical"][spec_key] = spec_data['overall_score']
+                elif isinstance(round_data, dict) and 'overall_score' in round_data:
+                    interviewer.round_scores[round_key] = round_data['overall_score']
 
 
         interviewer.global_readiness_score = mock_interview_db_instance.global_readiness_score
@@ -506,23 +478,8 @@ class AIInterviewer:
         interviewer.language_analysis = mock_interview_db_instance.language_analysis
         
         # Reconstruct technical_specializations from the database field (aiml_specialization JSONField)
-        #if mock_interview_db_instance.aiml_specialization:
-        #    interviewer.technical_specializations = mock_interview_db_instance.aiml_specialization
-        #elif interviewer.aiml_specialization and interviewer.aiml_specialization.strip():
-        #    interviewer.technical_specializations.append(interviewer.aiml_specialization.strip())
-
-
-
         interviewer.technical_specializations = loaded_aiml_specializations_list # CRITICAL: Directly set from the list
         
-
-
-
-
-
-        
-
-
         # Ensure only top 3 specializations are kept, and that they are unique
         interviewer.technical_specializations = list(set(interviewer.technical_specializations))[:3]
         print(f"DEBUG: Reconstructed technical specializations: {interviewer.technical_specializations}")

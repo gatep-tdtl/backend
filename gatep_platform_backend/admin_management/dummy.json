@@ -1,0 +1,205 @@
+{
+    "id": 259,
+    "user": "mahima1",
+    "interview_start_time": "2025-08-14T05:23:53.009378Z",
+    "interview_end_time": "2025-08-14T05:32:35.998649Z",
+    "position_applied": "AI Engineer",
+    "candidate_experience": "6 years (estimated from 3 roles) including roles like: Frontend Developer, SHE Trainee, Web Tech Intern",
+    "aiml_specialization_input": "",
+    "aiml_specialization": [],
+    "identity_verified": true,
+    "malpractice_detected": false,
+    "malpractice_reason": null,
+    "global_readiness_score": 6,
+    "language_proficiency_score": 20,
+    "language_analysis": "This text lacks grammatical structure, vocabulary, and fluency, indicating a very low level of language proficiency. The repetition of a single phrase 'Time expired - no answer provided' suggests a lack of creative expression and linguistic variability, further supporting a low score.",
+    "communication_overall_score": 0,
+    "psychometric_overall_score": 0,
+    "technical_specialization_scores": {},
+    "pre_generated_questions_data": {
+        "coding": {
+            "fix_error": {
+                "questions": [
+                    {
+                        "speak_text": "Here is your question 1 for Fix Error stage.",
+                        "question_text": "```\ndef sentiment_analysis(text):\n    sentiment = 0\n    for word in text.split():\n        if word in positive_words:\n            sentiment += 1\n        elif word in negative_words:\n            sentiment -= 1\n    return sentiment / len(text)\nprint(sentiment_analysis("
+                    }
+                ],
+                "intro_message": "Moving to Coding Stage: Fix Error."
+            },
+            "intro_message": "Starting the Coding Skills round. This round requires text input only.",
+            "write_program": {
+                "questions": [
+                    {
+                        "speak_text": "Here is your question 1 for Write Program stage.",
+                        "question_text": "Write a Python function to implement a simple Naive Bayes classification algorithm for text classification, given a list of labeled training data and a new input text to classify."
+                    }
+                ],
+                "intro_message": "Moving to Coding Stage: Write Program."
+            },
+            "predict_output": {
+                "questions": [
+                    {
+                        "speak_text": "Here is your question 1 for Predict Output stage.",
+                        "question_text": "```\ndef calculate_fibonacci(n):\n    if n <= 0:\n        return "
+                    }
+                ],
+                "intro_message": "Moving to Coding Stage: Predict Output."
+            }
+        },
+        "technical": {
+            "intro_message": "Starting Technical Skills round, focusing on your specializations.",
+            "specializations": {}
+        },
+        "psychometric": {
+            "questions": [
+                {
+                    "speak_text": "Question 1: Can you describe a situation where you had to adapt your problem-solving approach to work with a multidisciplinary team, and how you ensured your technical expertise was effectively communicated to non-technical team members?",
+                    "question_text": "Can you describe a situation where you had to adapt your problem-solving approach to work with a multidisciplinary team, and how you ensured your technical expertise was effectively communicated to non-technical team members?"
+                },
+                {
+                    "speak_text": "Question 2: How would you approach a complex AI project with limited data availability, and what strategies would you use to validate your model's performance and make data-driven decisions?",
+                    "question_text": "How would you approach a complex AI project with limited data availability, and what strategies would you use to validate your model's performance and make data-driven decisions?"
+                }
+            ],
+            "intro_message": "Starting Psychometric Assessment round."
+        },
+        "communication": {
+            "questions": [
+                {
+                    "speak_text": "Question 1: Can you describe a situation where you had to explain a complex AI concept to a non-technical team member, and how you ensured they understood the idea?",
+                    "question_text": "Can you describe a situation where you had to explain a complex AI concept to a non-technical team member, and how you ensured they understood the idea?"
+                },
+                {
+                    "speak_text": "Question 2: How would you approach a situation where a team member disagreed with your AI model's design, and what steps would you take to resolve the conflict?",
+                    "question_text": "How would you approach a situation where a team member disagreed with your AI model's design, and what steps would you take to resolve the conflict?"
+                }
+            ],
+            "intro_message": "Starting Communication Skills round."
+        },
+        "welcome_message": "......Welcome to the AI Interviewer.......",
+        "question_intro_template": "Question {number}: {question_text}",
+        "interview_complete_message": "The interview is complete. Generating your final comprehensive analysis now.",
+        "no_specializations_message": "Could not identify technical specializations. Technical sub-rounds will be skipped.",
+        "coding_question_intro_template": "Here is your question {number} for {stage_display_name} stage.",
+        "answer_acknowledgement_template": "Thank you for your answer.",
+        "interview_start_message_template": "Starting the AI Interview for {position} role.",
+        "error_report_save_message_template": "Error: Could not save the interview report to file. Please check permissions.",
+        "final_report_saved_message_template": "Your interview has concluded. A detailed report has been saved to {report_filename}. You did your best, now leave the rest to us.",
+        "malpractice_terminated_message_template": "The interview was terminated due to {reason}."
+    },
+    "full_qa_transcript": [
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Question 1: Can you describe a situation where you had to explain a complex AI concept to a non-technical team member, and how you ensured they understood the idea?",
+            "question_text": "Can you describe a situation where you had to explain a complex AI concept to a non-technical team member, and how you ensured they understood the idea?"
+        },
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Question 2: How would you approach a situation where a team member disagreed with your AI model's design, and what steps would you take to resolve the conflict?",
+            "question_text": "How would you approach a situation where a team member disagreed with your AI model's design, and what steps would you take to resolve the conflict?"
+        },
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Question 1: Can you describe a situation where you had to adapt your problem-solving approach to work with a multidisciplinary team, and how you ensured your technical expertise was effectively communicated to non-technical team members?",
+            "question_text": "Can you describe a situation where you had to adapt your problem-solving approach to work with a multidisciplinary team, and how you ensured your technical expertise was effectively communicated to non-technical team members?"
+        },
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Question 2: How would you approach a complex AI project with limited data availability, and what strategies would you use to validate your model's performance and make data-driven decisions?",
+            "question_text": "How would you approach a complex AI project with limited data availability, and what strategies would you use to validate your model's performance and make data-driven decisions?"
+        },
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Here is your question 1 for Predict Output stage.",
+            "question_text": "```\ndef calculate_fibonacci(n):\n    if n <= 0:\n        return "
+        },
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Here is your question 1 for Fix Error stage.",
+            "question_text": "```\ndef sentiment_analysis(text):\n    sentiment = 0\n    for word in text.split():\n        if word in positive_words:\n            sentiment += 1\n        elif word in negative_words:\n            sentiment -= 1\n    return sentiment / len(text)\nprint(sentiment_analysis("
+        },
+        {
+            "answer": "Time expired - no answer provided",
+            "speak_text": "Here is your question 1 for Write Program stage.",
+            "question_text": "Write a Python function to implement a simple Naive Bayes classification algorithm for text classification, given a list of labeled training data and a new input text to classify."
+        }
+    ],
+    "round_analysis_json": {
+        "fix_error": {
+            "questions": [
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Here is your question 1 for Fix Error stage.",
+                    "question_text": "```\ndef sentiment_analysis(text):\n    sentiment = 0\n    for word in text.split():\n        if word in positive_words:\n            sentiment += 1\n        elif word in negative_words:\n            sentiment -= 1\n    return sentiment / len(text)\nprint(sentiment_analysis("
+                }
+            ],
+            "overall_score": 0,
+            "round_summary": "The candidate failed to provide a correct answer to the question, indicating a lack of understanding of the programming concepts and syntax."
+        },
+        "psychometric": {
+            "questions": [
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Question 1: Can you describe a situation where you had to adapt your problem-solving approach to work with a multidisciplinary team, and how you ensured your technical expertise was effectively communicated to non-technical team members?",
+                    "question_text": "Can you describe a situation where you had to adapt your problem-solving approach to work with a multidisciplinary team, and how you ensured your technical expertise was effectively communicated to non-technical team members?"
+                },
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Question 2: How would you approach a complex AI project with limited data availability, and what strategies would you use to validate your model's performance and make data-driven decisions?",
+                    "question_text": "How would you approach a complex AI project with limited data availability, and what strategies would you use to validate your model's performance and make data-driven decisions?"
+                }
+            ],
+            "overall_score": 0,
+            "round_summary": "The candidate failed to provide any answers to the questions, demonstrating a lack of preparation and a inability to communicate their technical expertise."
+        },
+        "communication": {
+            "questions": [
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Question 1: Can you describe a situation where you had to explain a complex AI concept to a non-technical team member, and how you ensured they understood the idea?",
+                    "question_text": "Can you describe a situation where you had to explain a complex AI concept to a non-technical team member, and how you ensured they understood the idea?"
+                },
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Question 2: How would you approach a situation where a team member disagreed with your AI model's design, and what steps would you take to resolve the conflict?",
+                    "question_text": "How would you approach a situation where a team member disagreed with your AI model's design, and what steps would you take to resolve the conflict?"
+                }
+            ],
+            "overall_score": 0,
+            "round_summary": "The candidate failed to provide any answers to the questions, indicating a lack of experience or preparation for the communication round."
+        },
+        "write_program": {
+            "questions": [
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Here is your question 1 for Write Program stage.",
+                    "question_text": "Write a Python function to implement a simple Naive Bayes classification algorithm for text classification, given a list of labeled training data and a new input text to classify."
+                }
+            ],
+            "overall_score": 0,
+            "round_summary": "The candidate failed to provide a functional implementation of a Naive Bayes classification algorithm, failing to demonstrate even basic understanding of the topic."
+        },
+        "predict_output": {
+            "questions": [
+                {
+                    "score": 0,
+                    "answer": "Time expired - no answer provided",
+                    "speak_text": "Here is your question 1 for Predict Output stage.",
+                    "question_text": "```\ndef calculate_fibonacci(n):\n    if n <= 0:\n        return "
+                }
+            ],
+            "overall_score": 0,
+            "round_summary": "Candidate failed to provide a correct answer within the time limit."
+        }
+    },
+    "status": "COMPLETED",
+    "created_at": "2025-08-14T05:23:53.009651Z",
+    "updated_at": "2025-08-14T05:32:35.998993Z"
+}
