@@ -1031,3 +1031,4 @@ class AIInterviewer:
         except Exception as e:
             print(f"Error: Could not save final interview report to database: {e}")
             speak_text(self.all_generated_questions["error_report_save_message_template"])
+
