@@ -314,30 +314,28 @@ class ResumeDocumentSerializer(serializers.ModelSerializer):
 
 
 
-from .models import MockInterviewResult, SkillsPassport , Resume# Add SkillsPassport
+# talent_management/serializers.py
 
-# ... (at the end of the file, before other non-model serializers) ...
+# ... (all other imports and serializers) ...
+from .models import MockInterviewResult, SkillsPassport, Resume # Ensure Resume is imported
+
 class SkillsPassportSerializer(serializers.ModelSerializer):
-    # --- FIX #1: Use username as a fallback for the name ---
     talent_name = serializers.SerializerMethodField()
-    
-    # --- These are fine ---
     role = serializers.CharField(source='source_interview.position_applied', read_only=True)
-    location = serializers.CharField(source='user.resumes.first.preferred_location', read_only=True, default="Not Specified")
-
-    # --- FIX #3: Use a SerializerMethodField to reliably get certifications ---
-    verified_certifications = serializers.SerializerMethodField()
-
+    location = serializers.SerializerMethodField()
+    
+    # ✅ 2. ADD THE NEW FIELD FOR THE PHOTO URL
+    profile_photo_url = serializers.SerializerMethodField()
+    
     class Meta:
         model = SkillsPassport
         fields = [
             'id',
             'status',
-            # Additional combined data
             'talent_name',
+            'profile_photo_url',  # ✅ 3. INCLUDE THE NEW FIELD IN THE OUTPUT
             'role',
             'location',
-            # Fields from SkillsPassport model
             'global_readiness_score',
             'relocation_score',
             'cultural_adaptability_score',
@@ -347,24 +345,49 @@ class SkillsPassportSerializer(serializers.ModelSerializer):
             'key_strengths',
             'specialization_scores',
             'frameworks_tools',
-            # Data pulled directly from related models
-            'verified_certifications', # Now included
+            'rated_certifications',
             'created_at'
         ]
 
     def get_talent_name(self, obj):
-        """Returns the user's full name, or their username as a fallback."""
         user = obj.user
         full_name = user.get_full_name()
         return full_name if full_name else user.username
 
-    def get_verified_certifications(self, obj):
-        """Safely retrieves certification details from the user's resume."""
+    def get_location(self, obj):
         try:
-            # A user might have multiple resumes, we'll get the latest one.
             resume = obj.user.resumes.order_by('-updated_at').first()
-            if resume and resume.certification_details:
-                return resume.certification_details
+            if resume:
+                city = resume.current_city
+                country = resume.current_country
+                if city and country:
+                    return f"{city}, {country}"
+                return city or country or "Not Specified"
         except Resume.DoesNotExist:
-            return []
-        return []
+            return "Not Specified"
+        return "Not Specified"
+
+    # ✅ 4. ADD THE METHOD TO CONSTRUCT THE URL
+    def get_profile_photo_url(self, obj):
+        """
+        Constructs the full, absolute URL for the user's profile photo.
+        """
+        try:
+            # Get the user's most recently updated resume
+            resume = obj.user.resumes.order_by('-updated_at').first()
+            if resume and resume.profile_photo and hasattr(resume.profile_photo, 'url'):
+                # resume.profile_photo.url gives a relative path like '/media/profile_photos/user.jpg'
+                # The request context can build the full URL including the domain.
+                request = self.context.get('request')
+                if request:
+                    return request.build_absolute_uri(resume.profile_photo.url)
+                
+                # Fallback for environments without a request context (like background tasks)
+                # This uses the BASE_MEDIA_URL from settings.py that you provided.
+                # It strips any leading slashes from the url to prevent double slashes.
+                relative_url = resume.profile_photo.url.lstrip('/')
+                return f"{settings.BASE_MEDIA_URL}{relative_url}"
+
+        except Resume.DoesNotExist:
+            return None # Return null if no resume exists
+        return None # Return null if no photo is found

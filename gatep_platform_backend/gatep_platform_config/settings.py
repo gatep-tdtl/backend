@@ -219,13 +219,13 @@ MEDIA_URL = '/media/'
 # 
 # 
 #  # Change to your actual media URL in production
-
-if DEBUG:
+TESTING  = True 
+if TESTING:
     # For local development
     BASE_MEDIA_URL = 'http://127.0.0.1:8000/media/'
 else:
     # For production
-    BASE_MEDIA_URL = 'https://tdtlworld.com/gatep-backend/media/'
+    BASE_MEDIA_URL = 'https://ksf.tdtlworld.com/gatep-backend/media/'
 
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

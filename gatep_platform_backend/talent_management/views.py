@@ -1954,24 +1954,199 @@ class FullInterviewPhotoCheckAPIView(APIView):
 
 
 
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework import status
+# from .models import Resume, CustomUser, MockInterviewResult, SkillsPassport
+# from .serializers import MockInterviewResultSerializer, FullResumeSerializer, SkillsPassportSerializer
+# from .ai_passport_generator import generate_skills_passport_data
+
+# # ... (all your other views) ...
+
+# class SkillsPassportView(APIView):
+#     """
+#     API for generating and retrieving a user's Skills Passport.
+#     - POST: Generates a new passport based on the latest completed interview.
+#             If a failed/pending passport exists, it will be deleted to allow a retry.
+#     - GET:  Retrieves the latest successfully completed passport.
+#     """
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, *args, **kwargs):
+#         """
+#         Retrieves the latest successfully COMPLETED Skills Passport for the authenticated user.
+#         """
+#         passport = SkillsPassport.objects.filter(
+#             user=request.user,
+#             status=SkillsPassport.PassportStatus.COMPLETED
+#         ).order_by('-created_at').first()
+
+#         if not passport:
+#             return Response(
+#                 {"error": "No completed Skills Passport found. Please complete a mock interview and generate one."},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+            
+#         serializer = SkillsPassportSerializer(passport)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+
+#     def post(self, request, *args, **kwargs):
+#         """
+#         Generates a new Skills Passport. If a previously failed or pending passport exists
+#         for the latest interview, it will be deleted and a new attempt will be made.
+#         """
+#         user = request.user
+        
+#         # 1. Find the latest completed mock interview for the user
+#         latest_interview = MockInterviewResult.objects.filter(
+#             user=user,
+#             status=MockInterviewResult.InterviewStatus.COMPLETED
+#         ).order_by('-created_at').first()
+
+#         if not latest_interview:
+#             return Response({"error": "No completed mock interview found to generate a passport from."}, status=status.HTTP_404_NOT_FOUND)
+
+#         # 2. Check for an existing passport for this specific interview to handle retries
+#         existing_passport = SkillsPassport.objects.filter(source_interview=latest_interview).first()
+
+#         if existing_passport:
+#             # If it's already successfully completed, prevent re-generation.
+#             if existing_passport.status == SkillsPassport.PassportStatus.COMPLETED:
+#                 return Response({
+#                     "message": "A completed Skills Passport for this interview already exists. Use the GET endpoint to retrieve it."
+#                 }, status=status.HTTP_409_CONFLICT)
+            
+#             # If it's stuck in a FAILED or PENDING state, delete it to allow a clean retry.
+#             else:
+#                 print(f"Deleting stale passport (ID: {existing_passport.id}, Status: {existing_passport.status}) to retry generation.")
+#                 existing_passport.delete()
+        
+#         # 3. Fetch the user's resume (required for generation)
+#         try:
+#             resume = Resume.objects.get(talent_id=user)
+#         except Resume.DoesNotExist:
+#             return Response({"error": "Resume not found. A resume is required to generate a passport."}, status=status.HTTP_404_NOT_FOUND)
+
+#         # 4. Create a new placeholder passport entry with PENDING status
+#         # This is wrapped in the main try/except block to handle any potential errors.
+#         passport = None
+#         try:
+#             passport = SkillsPassport.objects.create(
+#                 user=user,
+#                 source_interview=latest_interview,
+#                 status=SkillsPassport.PassportStatus.PENDING
+#             )
+
+#             # 5. Begin the AI generation process
+#             # (For production, this block should be in a background task e.g., Celery)
+            
+#             # Serialize the source data for the AI prompt
+#             interview_serializer = MockInterviewResultSerializer(latest_interview)
+#             # Pass the request context to the resume serializer to build full URLs
+#             resume_serializer = FullResumeSerializer(resume, context={'request': request})
+            
+#             # Call the AI generation service
+#             ai_generated_data = generate_skills_passport_data(
+#                 interview_report_json=interview_serializer.data,
+#                 resume_json=resume_serializer.data
+#             )
+
+#             if not ai_generated_data:
+#                 # If AI fails, update status to FAILED and return an error
+#                 passport.status = SkillsPassport.PassportStatus.FAILED
+#                 passport.save()
+#                 return Response({"error": "AI failed to generate passport data. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+#             # 6. Assemble all data and save to the passport object
+#             # - Get scores from the interview report
+#             passport.communication_skills_score = latest_interview.communication_overall_score
+#             tech_scores = list(latest_interview.technical_specialization_scores.values())
+#             passport.technical_readiness_score = int(sum(tech_scores) / len(tech_scores)) if tech_scores else 0
+#             passport.specialization_scores = latest_interview.technical_specialization_scores
+
+#             # - Get data from the AI
+#             passport.relocation_score = ai_generated_data.get('relocation_score', 0)
+#             passport.cultural_adaptability_score = ai_generated_data.get('cultural_adaptability_score', 0)
+#             passport.ai_powered_summary = ai_generated_data.get('ai_powered_summary', '')
+#             passport.key_strengths = ai_generated_data.get('key_strengths', [])
+#             passport.frameworks_tools = ai_generated_data.get('frameworks_tools', [])
+
+#             # - Calculate the final Global Readiness Score
+#             total_score = (
+#                 passport.relocation_score +
+#                 passport.cultural_adaptability_score +
+#                 passport.communication_skills_score +
+#                 passport.technical_readiness_score
+#             )
+#             # Avoid division by zero if all scores are 0
+#             passport.global_readiness_score = int(total_score / 4) if total_score > 0 else 0
+            
+#             # 7. Finalize the passport
+#             passport.status = SkillsPassport.PassportStatus.COMPLETED
+#             passport.save()
+
+#             # Return the newly created passport data
+#             final_serializer = SkillsPassportSerializer(passport)
+#             return Response(final_serializer.data, status=status.HTTP_201_CREATED)
+
+#         except Exception as e:
+#             # If any unexpected error occurs during generation, mark as FAILED
+#             # This check ensures we don't try to save a passport that failed to be created
+#             if passport:
+#                 passport.status = SkillsPassport.PassportStatus.FAILED
+#                 passport.save()
+#             print(f"Error during passport generation: {e}")
+#             return Response({"error": f"An unexpected error occurred during passport generation: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+# talent_management/views.py
+
+# ... (ensure these imports are at the top of your views.py file)
+import json
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from .models import Resume, CustomUser, MockInterviewResult, SkillsPassport
+from .models import Resume, MockInterviewResult, SkillsPassport
 from .serializers import MockInterviewResultSerializer, FullResumeSerializer, SkillsPassportSerializer
 from .ai_passport_generator import generate_skills_passport_data
 
-# ... (all your other views) ...
+# ... (all your other views, like ResumeBuilderAPIView, etc.) ...
+
 
 class SkillsPassportView(APIView):
     """
     API for generating and retrieving a user's Skills Passport.
-    - POST: Generates a new passport based on the latest completed interview.
-            If a failed/pending passport exists, it will be deleted to allow a retry.
+    - POST: Generates a new passport by having an AI analyze the latest completed interview transcript and resume.
+            If a failed/pending passport exists for that interview, it will be deleted to allow a retry.
     - GET:  Retrieves the latest successfully completed passport.
     """
     permission_classes = [IsAuthenticated]
+
+    def _safe_json_loads(self, data, default_value=None):
+        """Safely parse a JSON string, returning a default value on failure."""
+        if default_value is None:
+            default_value = []
+        if isinstance(data, (list, dict)): # If it's already parsed, return it
+            return data
+        if not isinstance(data, str) or not data.strip():
+            return default_value
+        try:
+            return json.loads(data)
+        except (json.JSONDecodeError, TypeError):
+            return default_value
+
+    def _get_location_from_resume(self, resume):
+        """Constructs a location string from a resume object."""
+        if resume:
+            city = resume.current_city
+            country = resume.current_country
+            if city and country:
+                return f"{city}, {country}"
+            return city or country or "Not Specified"
+        return "Not Specified"
 
     def get(self, request, *args, **kwargs):
         """
@@ -1988,13 +2163,13 @@ class SkillsPassportView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
             
-        serializer = SkillsPassportSerializer(passport)
+        serializer = SkillsPassportSerializer(passport, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """
-        Generates a new Skills Passport. If a previously failed or pending passport exists
-        for the latest interview, it will be deleted and a new attempt will be made.
+        Generates a new Skills Passport. This process involves a comprehensive AI analysis
+        of the user's latest interview transcript and resume data.
         """
         user = request.user
         
@@ -2011,25 +2186,22 @@ class SkillsPassportView(APIView):
         existing_passport = SkillsPassport.objects.filter(source_interview=latest_interview).first()
 
         if existing_passport:
-            # If it's already successfully completed, prevent re-generation.
             if existing_passport.status == SkillsPassport.PassportStatus.COMPLETED:
                 return Response({
                     "message": "A completed Skills Passport for this interview already exists. Use the GET endpoint to retrieve it."
                 }, status=status.HTTP_409_CONFLICT)
-            
-            # If it's stuck in a FAILED or PENDING state, delete it to allow a clean retry.
             else:
+                # If stuck in FAILED or PENDING, delete to allow a clean retry.
                 print(f"Deleting stale passport (ID: {existing_passport.id}, Status: {existing_passport.status}) to retry generation.")
                 existing_passport.delete()
         
-        # 3. Fetch the user's resume (required for generation)
+        # 3. Fetch the user's resume
         try:
             resume = Resume.objects.get(talent_id=user)
         except Resume.DoesNotExist:
             return Response({"error": "Resume not found. A resume is required to generate a passport."}, status=status.HTTP_404_NOT_FOUND)
 
-        # 4. Create a new placeholder passport entry with PENDING status
-        # This is wrapped in the main try/except block to handle any potential errors.
+        # 4. Create a placeholder passport entry with PENDING status
         passport = None
         try:
             passport = SkillsPassport.objects.create(
@@ -2038,66 +2210,67 @@ class SkillsPassportView(APIView):
                 status=SkillsPassport.PassportStatus.PENDING
             )
 
-            # 5. Begin the AI generation process
-            # (For production, this block should be in a background task e.g., Celery)
-            
-            # Serialize the source data for the AI prompt
+            # 5. Prepare data for the AI prompt
+            # We serialize the objects to get a consistent dictionary format.
             interview_serializer = MockInterviewResultSerializer(latest_interview)
-            # Pass the request context to the resume serializer to build full URLs
             resume_serializer = FullResumeSerializer(resume, context={'request': request})
             
-            # Call the AI generation service
+            interview_data = interview_serializer.data
+            resume_data = resume_serializer.data
+
+            # Clean and prepare the resume data, ensuring JSON strings are parsed
+            resume_data['skills'] = self._safe_json_loads(resume_data.get('skills'), [])
+            resume_data['projects'] = self._safe_json_loads(resume_data.get('projects'), [])
+            resume_data['verified_certifications'] = self._safe_json_loads(resume.certification_details, [])
+            resume_data['location'] = self._get_location_from_resume(resume)
+
+            # Call the AI generation service with the prepared data
             ai_generated_data = generate_skills_passport_data(
-                interview_report_json=interview_serializer.data,
-                resume_json=resume_serializer.data
+                interview_report_json=interview_data,
+                resume_json=resume_data
             )
 
             if not ai_generated_data:
-                # If AI fails, update status to FAILED and return an error
                 passport.status = SkillsPassport.PassportStatus.FAILED
                 passport.save()
                 return Response({"error": "AI failed to generate passport data. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             # 6. Assemble all data and save to the passport object
-            # - Get scores from the interview report
-            passport.communication_skills_score = latest_interview.communication_overall_score
-            tech_scores = list(latest_interview.technical_specialization_scores.values())
-            passport.technical_readiness_score = int(sum(tech_scores) / len(tech_scores)) if tech_scores else 0
+            # --- USE AI-GENERATED SCORES INSTEAD OF DIRECT COPY ---
+            passport.communication_skills_score = ai_generated_data.get('communication_skills_score', 0)
+            passport.technical_readiness_score = ai_generated_data.get('technical_readiness_score', 0)
+            
+            # Specialization scores can still come from the interview if available, as they are granular.
             passport.specialization_scores = latest_interview.technical_specialization_scores
 
-            # - Get data from the AI
+            # --- Get the rest of the data from the AI analysis ---
             passport.relocation_score = ai_generated_data.get('relocation_score', 0)
             passport.cultural_adaptability_score = ai_generated_data.get('cultural_adaptability_score', 0)
             passport.ai_powered_summary = ai_generated_data.get('ai_powered_summary', '')
             passport.key_strengths = ai_generated_data.get('key_strengths', [])
             passport.frameworks_tools = ai_generated_data.get('frameworks_tools', [])
+            passport.rated_certifications = ai_generated_data.get('rated_certifications', [])
 
-            # - Calculate the final Global Readiness Score
+            # --- Calculate the final Global Readiness Score using the NEW AI-generated scores ---
             total_score = (
                 passport.relocation_score +
                 passport.cultural_adaptability_score +
                 passport.communication_skills_score +
                 passport.technical_readiness_score
             )
-            # Avoid division by zero if all scores are 0
             passport.global_readiness_score = int(total_score / 4) if total_score > 0 else 0
             
             # 7. Finalize the passport
             passport.status = SkillsPassport.PassportStatus.COMPLETED
             passport.save()
 
-            # Return the newly created passport data
-            final_serializer = SkillsPassportSerializer(passport)
+            final_serializer = SkillsPassportSerializer(passport, context={'request': request})
             return Response(final_serializer.data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            # If any unexpected error occurs during generation, mark as FAILED
-            # This check ensures we don't try to save a passport that failed to be created
+            # If any error occurs, mark the passport as FAILED
             if passport:
                 passport.status = SkillsPassport.PassportStatus.FAILED
                 passport.save()
             print(f"Error during passport generation: {e}")
             return Response({"error": f"An unexpected error occurred during passport generation: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-

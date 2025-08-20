@@ -503,7 +503,11 @@ class SkillsPassport(models.Model):
         FAILED = 'FAILED', _('Generation Failed')
 
     # --- Links to source data ---
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='skills_passports')
+    user = models.ForeignKey(
+        CustomUser, 
+        on_delete=models.CASCADE, 
+        related_name='skills_passports'
+    )
     source_interview = models.OneToOneField(
         MockInterviewResult,
         on_delete=models.CASCADE,
@@ -515,39 +519,47 @@ class SkillsPassport(models.Model):
     status = models.CharField(
         max_length=50,
         choices=PassportStatus.choices,
-        default=PassportStatus.PENDING
+        default=PassportStatus.PENDING,
+        verbose_name=_('Generation Status')
     )
 
-    # --- Data Fields (mirroring the UI) ---
+    # --- Data Fields (populated by AI analysis and data aggregation) ---
     
-    # Global Readiness
-    global_readiness_score = models.IntegerField(default=0, help_text="Overall weighted score (0-100)")
-    relocation_score = models.IntegerField(default=0, help_text="AI-generated score for relocation readiness (0-100)")
-    cultural_adaptability_score = models.IntegerField(default=0, help_text="AI-generated score for cultural fit (0-100)")
-    communication_skills_score = models.IntegerField(default=0, help_text="From interview report (0-100)")
-    technical_readiness_score = models.IntegerField(default=0, help_text="From interview report (0-100)")
+    # Global Readiness Scores (0-100)
+    global_readiness_score = models.IntegerField(default=0, help_text="Overall weighted score for global readiness.")
+    relocation_score = models.IntegerField(default=0, help_text="AI-generated score for relocation readiness.")
+    cultural_adaptability_score = models.IntegerField(default=0, help_text="AI-generated score for cultural fit and adaptability.")
+    communication_skills_score = models.IntegerField(default=0, help_text="AI-generated score based on interview transcript analysis.")
+    technical_readiness_score = models.IntegerField(default=0, help_text="AI-generated score based on interview transcript and resume.")
     
     # AI-Powered Insights
     ai_powered_summary = models.TextField(blank=True, help_text="AI-generated professional summary.")
     key_strengths = models.JSONField(default=list, help_text="List of key strength tags, e.g., ['Advanced ML/DL', ...]")
 
     # AI/ML Specializations
-    specialization_scores = models.JSONField(default=dict, help_text="Dict of specializations and their scores, e.g., {'Machine Learning': 95}")
+    specialization_scores = models.JSONField(default=dict, help_text="Dict of specializations and their scores from the interview, e.g., {'Machine Learning': 95}")
 
     # Frameworks & Tools
-    frameworks_tools = models.JSONField(default=list, help_text="List of dicts: [{'name': 'PyTorch', 'projects': 12, 'proficiency': 4}]")
+    frameworks_tools = models.JSONField(default=list, help_text="List of dicts: [{'name': 'PyTorch', 'projects': 2, 'proficiency': 4}]")
+
+    # AI-Rated Certifications
+    rated_certifications = models.JSONField(
+        default=list,
+        help_text="List of certification dicts with an added 'relevance_score' from AI analysis, e.g., [{'name': 'AWS Certified', 'relevance_score': 90}]"
+    )
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Skills Passport for {self.user.username} (Interview ID: {self.source_interview.id})"
+        return f"Skills Passport for {self.user.username} (Status: {self.status})"
 
     class Meta:
         ordering = ['-created_at']
-        unique_together = ('user', 'source_interview') # Ensures one passport per interview
-    
+        unique_together = ('user', 'source_interview') # Ensures only one passport can be generated per interview.
+        verbose_name = "Skills Passport"
+        verbose_name_plural = "Skills Passports"
 
 
 ############################### interview bot models end ########################
