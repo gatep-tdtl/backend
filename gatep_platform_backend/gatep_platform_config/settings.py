@@ -219,7 +219,7 @@ MEDIA_URL = '/media/'
 # 
 # 
 #  # Change to your actual media URL in production
-TESTING  = True 
+TESTING  = False 
 if TESTING:
     # For local development
     BASE_MEDIA_URL = 'http://127.0.0.1:8000/media/'

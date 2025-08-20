@@ -696,76 +696,118 @@ class AdminDashboardAPIView(APIView):
         return placements_by_region
 
 
-from django.db import connections
+
+from django.db.models import Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from .permission import IsRoleAdmin  # adjust path as needed
-
+from rest_framework import status
+from talent_management.models import Resume
+from .serializers import TalentDistributionSerializer, TalentFilterOptionsSerializer
+import json
 
 class TalentHeatmapAPIView(APIView):
-    # permission_classes = [IsAuthenticated, IsRoleAdmin]
- 
-    def get_statewise_data(self, role=None, certification=None):
-        query = """
-            SELECT R.current_state, COUNT(R.id) AS professionals
-            FROM talent_management_resume R
-            JOIN talent_management_customuser U ON R.talent_id_id = U.id
-            WHERE R.current_state IS NOT NULL AND TRIM(R.current_state) != ''
-        """
-        params = []
- 
-        # Apply role filter if provided
+    """
+    API view to provide state-wise AI talent distribution data.
+    Supports filtering by the talent's latest role and certification issuer.
+    """
+    def get(self, request, *args, **kwargs):
+        # Get filter parameters from the request query string
+        role = request.query_params.get('role', None)
+        certification_issuer = request.query_params.get('certification', None)
+
+        # Start with a base queryset, excluding records without a state
+        queryset = Resume.objects.filter(is_deleted=False).exclude(
+            current_state__isnull=True
+        ).exclude(
+            current_state__exact=''
+        )
+
+        # --- Apply Role Filter ---
+        # The 'experience' field is a TextField storing a JSON string.
+        # We must use a string-based search. This filter checks if the
+        # string starts with `[{"title": "Your Role"`, which corresponds
+        # to the latest job entry.
         if role:
-            query += " AND LOWER(TRIM(U.user_role)) = LOWER(%s)"
-            params.append(role.strip())
- 
-        # Apply certification filter if provided
-        if certification:
-            query += " AND LOWER(TRIM(R.certifications)) LIKE LOWER(%s)"
-            params.append(f"%{certification.strip()}%")
- 
-        query += " GROUP BY R.current_state"
- 
-        with connections['default'].cursor() as cursor:
-            cursor.execute(query, params)
-            rows = cursor.fetchall()
- 
-        result = []
-        for row in rows:
-            state = row[0].strip().title()
-            count = row[1]
-            result.append({"state": state, "professionals": count})
- 
-        # Sort by highest professionals first
-        result.sort(key=lambda x: x["professionals"], reverse=True)
-        return result
- 
-    def get(self, request):
-        # Query params from frontend dropdowns
-        role = request.query_params.get("role")   # ?role=AI Engineer
-        certification = request.query_params.get("certification")  # ?certification=Coursera
- 
-        # Data filtered by frontend request
-        filtered_data = self.get_statewise_data(role=role, certification=certification)
- 
-        # Default view (overall distribution)
-        overall_data = self.get_statewise_data()
- 
-        # Predefined roles breakdown
-        roles = ["AI Engineer", "ML Specialist", "Data Scientist"]
-        rolewise_data = {r: self.get_statewise_data(role=r) for r in roles}
- 
-        response = {
-            "overall": overall_data,
-            "roles": rolewise_data,
-            "filtered": {
-                "role": role if role else "All Roles",
-                "certification": certification if certification else "All Certifications",
-                "data": filtered_data
-            }
+            # This search is case-sensitive. Use __istartswith for case-insensitive.
+            filter_string = f'[{{\"title\": \"{role}\"'
+            queryset = queryset.filter(experience__startswith=filter_string)
+
+        # --- Apply Certification Filter ---
+        # The 'certification_details' field is a proper JSONField.
+        # We can use the '__contains' lookup to find any record in the JSON array
+        # that has the specified issuer.
+        if certification_issuer:
+            queryset = queryset.filter(
+                certification_details__contains=[{'issued_by': certification_issuer}]
+            )
+
+        # --- Aggregate the Data ---
+        # Group the filtered results by 'current_state' and count the number of resumes.
+        # Order the results by count in descending order.
+        state_distribution = queryset.values('current_state').annotate(
+            count=Count('id')
+        ).order_by('-count')
+
+        # Serialize the aggregated data
+        serializer = TalentDistributionSerializer(state_distribution, many=True)
+        
+        # The UI shows both a map and a sorted list, which use the same data source.
+        response_data = {
+            "heatmap_data": serializer.data,
+            "top_states": serializer.data,
         }
-        return Response(response)
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+
+class TalentFilterOptionsAPIView(APIView):
+    """
+    API view to provide unique roles and certification issuers to populate UI filters.
+    NOTE: This can be a slow query on large datasets. Caching is highly recommended
+    in a production environment.
+    """
+    def get(self, request, *args, **kwargs):
+        # --- Get Unique Roles ---
+        # Fetches the 'experience' text field for all relevant resumes
+        all_experiences = Resume.objects.filter(
+            experience__isnull=False, experience__startswith='[{"title":'
+        ).values_list('experience', flat=True)
+        
+        roles = set()
+        for exp_json_string in all_experiences:
+            try:
+                # Safely load the JSON string into a Python list
+                exp_list = json.loads(exp_json_string)
+                if exp_list and isinstance(exp_list, list) and len(exp_list) > 0:
+                    first_exp = exp_list[0]
+                    if isinstance(first_exp, dict) and 'title' in first_exp and first_exp['title']:
+                        roles.add(first_exp['title'])
+            except json.JSONDecodeError:
+                # Ignore records with malformed JSON
+                continue
+        
+        # --- Get Unique Certification Issuers ---
+        all_certs = Resume.objects.filter(
+            certification_details__isnull=False
+        ).exclude(
+            certification_details__exact='[]'
+        ).values_list('certification_details', flat=True)
+        
+        issuers = set()
+        for cert_list in all_certs:
+             if cert_list and isinstance(cert_list, list):
+                 for cert in cert_list:
+                     if isinstance(cert, dict) and 'issued_by' in cert and cert['issued_by']:
+                         issuers.add(cert['issued_by'])
+                         
+        # Prepare and serialize the data for the response
+        data = {
+            'roles': sorted(list(roles)),
+            'certifications': sorted(list(issuers))
+        }
+        serializer = TalentFilterOptionsSerializer(data)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 
@@ -1686,3 +1728,21 @@ class TalentHeatmapInstituteWiseAPIView(APIView):
 #         }
         
 #         return Response(filter_data)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

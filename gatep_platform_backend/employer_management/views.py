@@ -853,37 +853,64 @@ from django.db import connection
 class EmployerDashboardAPIView(APIView):
     def get(self, request):
         dashboard_data = {}
-
-        # --- 1. Total Applicants with 'applied' status ---
+ 
+        # --- Filters ---
+        time_filter = request.GET.get("time_filter", "6m")   # default = last 6 months
+        job_filter = request.GET.get("job")  # e.g., "AI Engineer"
+ 
+        # Map time_filter to timedelta
+        time_map = {
+            "1m": 30,
+            "3m": 90,
+            "6m": 180,
+            "1y": 365,
+        }
+        days = time_map.get(time_filter, 180)  # default 6 months
+        date_threshold = (now() - timedelta(days=days)).date()
+ 
+        job_condition = ""
+        params = [date_threshold]
+ 
+        if job_filter:
+            job_condition = "AND jp.title = %s"
+            params.append(job_filter)
+ 
+        # --- 1. Total Applicants ---
         with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT COUNT(*) 
-                FROM gatep_platform_db.employer_management_application 
-                WHERE status = 'applied'
-            """)
+            cursor.execute(f"""
+                SELECT COUNT(*)
+                FROM gatep_platform_db.employer_management_application a
+                JOIN gatep_platform_db.employer_management_jobposting jp
+                    ON a.job_posting_id = jp.id
+                WHERE a.status = 'applied' AND a.created_at >= %s {job_condition}
+            """, params)
             dashboard_data['total_applicants'] = cursor.fetchone()[0]
-
+ 
         # --- 2. Interviews Scheduled ---
         with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT COUNT(*) 
-                FROM gatep_platform_db.employer_management_interview 
-                WHERE scheduled_at IS NOT NULL
-            """)
+            cursor.execute(f"""
+                SELECT COUNT(*)
+                FROM gatep_platform_db.employer_management_interview i
+                JOIN gatep_platform_db.employer_management_application a
+                    ON i.application_id = a.id
+                JOIN gatep_platform_db.employer_management_jobposting jp
+                    ON a.job_posting_id = jp.id
+                WHERE i.scheduled_at IS NOT NULL AND i.created_at >= %s {job_condition}
+            """, params)
             dashboard_data['interview_scheduled'] = cursor.fetchone()[0]
-
-        # --- 3. Active Jobs where is_active = 1 ---
+ 
+        # --- 3. Active Jobs ---
         with connection.cursor() as cursor:
-            cursor.execute("""
-                SELECT COUNT(*) 
-                FROM gatep_platform_db.employer_management_jobposting 
-                WHERE is_active = 1
-            """)
+            cursor.execute(f"""
+                SELECT COUNT(*)
+                FROM gatep_platform_db.employer_management_jobposting jp
+                WHERE jp.is_active = 1 AND jp.created_at >= %s {job_condition}
+            """, params)
             dashboard_data['active_jobs'] = cursor.fetchone()[0]
-
+ 
         # --- 4. Offer Extended (Placeholder) ---
-        dashboard_data['offer_extended'] = 0  # Update when logic is available
-
+        dashboard_data['offer_extended'] = 0
+ 
         return Response(dashboard_data)
 
 import re

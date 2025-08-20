@@ -147,3 +147,23 @@ class RecentActivitySerializer(serializers.Serializer):
 #     system_health = serializers.ListField(child=serializers.DictField())
 #     recent_system_activity = RecentActivitySerializer(many=True)
 #     key_performance_indicators = KPISerializer()
+
+
+
+
+
+
+
+class TalentDistributionSerializer(serializers.Serializer):
+    """
+    Serializer for the state-wise talent distribution data.
+    """
+    state = serializers.CharField(source='current_state')
+    count = serializers.IntegerField()
+
+class TalentFilterOptionsSerializer(serializers.Serializer):
+    """
+    Serializer for the available filter options (roles and certifications).
+    """
+    roles = serializers.ListField(child=serializers.CharField())
+    certifications = serializers.ListField(child=serializers.CharField())
