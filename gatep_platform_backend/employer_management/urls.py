@@ -1,6 +1,6 @@
 from django.urls import path
 from employer_management.views import (
-    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmployerAnalyticsDemographicAPIView, EmployerAnalyticsTrendsAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewStatusUpdateView,
+    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmployerAnalyticsDemographicAPIView, EmployerAnalyticsTrendsAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewFeedbackView, InterviewStatusUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView, PotentialCandidateMatchView, PublishJobPostingView,
@@ -38,6 +38,8 @@ urlpatterns = [
     path('interviews/<int:pk>/', InterviewDetailView.as_view(), name='interview-detail'),
     path('talent/interviews/', TalentInterviewListView.as_view(), name='talent-interview-list'),
     path('interviews/<int:pk>/update-status/', InterviewStatusUpdateView.as_view(), name='interview-update-status'),
+    path('interviews/<int:interview_pk>/submit-feedback/', InterviewFeedbackView.as_view(), name='submit-interview-feedback'),
+    path('interviews/<int:interview_pk>/feedback/', InterviewFeedbackView.as_view(), name='interview-feedback'),
    # 🔹 Saved Jobs
     path('saved-jobs/', ListSavedJobsView.as_view(), name='saved-jobs-list'),
     path('saved-jobs/save/', SaveJobView.as_view(), name='save-job'),

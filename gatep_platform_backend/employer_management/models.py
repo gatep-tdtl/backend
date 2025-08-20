@@ -152,3 +152,74 @@ class SavedJob(models.Model):
         ordering = ['-saved_at']
     def __str__(self):
         return f"{self.talent.username} saved {self.job_posting.title}"
+    
+
+
+class InterviewOutcome(models.TextChoices):
+    PENDING = 'PENDING', 'Pending' # A default state before feedback is submitted
+    PASSED = 'PASSED', 'Passed'
+    FAILED = 'FAILED', 'Failed'
+
+class FeedbackRecommendation(models.TextChoices):
+    STRONG_HIRE = 'STRONG_HIRE', _('Strong Hire')
+    HIRE = 'HIRE', _('Hire')
+    NO_HIRE = 'NO_HIRE', _('No Hire')
+    NOT_SURE = 'NOT_SURE', _('Not Sure / Needs More Review')
+
+# --- REVISED InterviewFeedback MODEL ---
+class InterviewFeedback(models.Model):
+    interview = models.OneToOneField(
+        Interview,
+        on_delete=models.CASCADE,
+        related_name='feedback_details',
+        primary_key=True
+    )
+    interviewer = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='given_feedback',
+        verbose_name=_("Feedback Provided By")
+    )
+
+    # --- Structured Ratings ---
+    technical_skills_rating = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Rating from 1 (Poor) to 10 (Excellent)"
+    )
+    communication_skills_rating = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Rating from 1 (Poor) to 10 (Excellent)"
+    )
+    cultural_fit_rating = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Rating from 1 (Poor) to 10 (Excellent)"
+    )
+
+    # --- Detailed Text Feedback ---
+    strengths = models.TextField(blank=True, verbose_name=_("Candidate's Strengths"))
+    weaknesses = models.TextField(blank=True, verbose_name=_("Areas for Improvement"))
+    overall_comments = models.TextField(verbose_name=_("Overall Comments"))
+
+    # --- User's Recommendation (The Input) ---
+    recommendation = models.CharField(
+        max_length=50,
+        choices=FeedbackRecommendation.choices,
+        verbose_name=_("Overall Recommendation")
+    )
+
+    # --- Final Outcome (The Derived Result) ---
+    # THIS FIELD IS NEW/MOVED HERE
+    outcome = models.CharField(
+        max_length=50,
+        choices=InterviewOutcome.choices,
+        default=InterviewOutcome.PENDING,
+        verbose_name=_("Final Outcome")
+    )
+
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Feedback for {self.interview.application.talent.username} (Outcome: {self.get_outcome_display()})"
+
+    class Meta:
+        verbose_name = "Interview Feedback"
+        verbose_name_plural = "Interview Feedbacks"
+        ordering = ['-submitted_at']

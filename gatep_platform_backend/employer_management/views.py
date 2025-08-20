@@ -8,10 +8,10 @@ from rest_framework.response import Response
 from rest_framework import generics, status, permissions
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from .models import ApplicationStatus, Company, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
+from .models import ApplicationStatus, Company, FeedbackRecommendation, InterviewFeedback, InterviewOutcome, JobPosting, Application, Interview, JobStatus, SavedJob, InterviewStatus
 from talent_management.models import TalentProfile, Resume, CustomUser, UserRole
 from .serializers import (
-    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, InterviewStatusUpdateSerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer, PotentialCandidateSerializer,
+    ApplicationStatusUpdateSerializer, CandidateDashboardSerializer, CompanySerializer, InterviewFeedbackSerializer, InterviewStatusUpdateSerializer, JobPostingSerializer, ApplicationSerializer, InterviewSerializer, PotentialCandidateSerializer,
     SavedJobSerializer, SaveJobActionSerializer, ApplicationListSerializer, ApplicationDetailSerializer, InterviewListItemSerializer
 )
 from utils1.ai_match import get_ai_match_score
@@ -1088,3 +1088,108 @@ class EmployerAnalyticsTrendsAPIView(APIView):
         return Response(data)
     
 ###################### nikita's code end ##############################
+
+
+
+from django.shortcuts import get_object_or_404
+from django.db import transaction
+
+
+class InterviewFeedbackView(APIView):
+    """
+    API endpoint for an employer to submit and retrieve feedback for an interview.
+    
+    - POST /api/interviews/<interview_pk>/feedback/: Submits new feedback for a scheduled interview.
+    - GET /api/interviews/<interview_pk>/feedback/: Retrieves existing feedback for a completed interview.
+    
+    """
+    # Permissions need to allow both employer and talent to potentially view feedback
+    # We will refine access inside the get method itself.
+    permission_classes = [permissions.IsAuthenticated, IsInterviewParticipantOrJobOwner]
+
+    # --- THIS IS THE NEW GET METHOD ---
+    def get(self, request, interview_pk, *args, **kwargs):
+        """
+        Retrieves the feedback submitted for a specific interview.
+        """
+        # We use a try-except block because get_object_or_404 would raise a 404
+        # if feedback doesn't exist, but we want to return a specific message.
+        try:
+            # First, get the interview to check permissions
+            interview = get_object_or_404(Interview, pk=interview_pk)
+            self.check_object_permissions(request, interview)
+            
+            # Now, try to get the associated feedback
+            feedback = InterviewFeedback.objects.get(interview=interview)
+            
+            serializer = InterviewFeedbackSerializer(feedback)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except InterviewFeedback.DoesNotExist:
+            return Response(
+                {"error": "No feedback has been submitted for this interview yet."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            # Generic error for unexpected issues
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # --- YOUR EXISTING POST METHOD (Unchanged) ---
+    @transaction.atomic
+    def post(self, request, interview_pk, *args, **kwargs):
+        interview = get_object_or_404(Interview, pk=interview_pk)
+        
+        # Permission check specific for POSTing (only employers should submit feedback)
+        if not request.user.is_employer_role:
+             raise PermissionDenied("Only employer users can submit interview feedback.")
+
+        self.check_object_permissions(request, interview)
+        
+        if interview.interview_status != InterviewStatus.SCHEDULED:
+            return Response(
+                {"error": "Feedback can only be submitted for 'Scheduled' interviews."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if feedback already exists to prevent duplicates
+        if hasattr(interview, 'feedback_details'):
+            return Response(
+                {"error": "Feedback has already been submitted for this interview."},
+                status=status.HTTP_409_CONFLICT # 409 Conflict is a good status code here
+            )
+
+        serializer = InterviewFeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        recommendation = serializer.validated_data.get('recommendation')
+        if recommendation in [FeedbackRecommendation.STRONG_HIRE, FeedbackRecommendation.HIRE]:
+            final_outcome = InterviewOutcome.PASSED
+        else:
+            final_outcome = InterviewOutcome.FAILED
+            
+        feedback = serializer.save(
+            interview=interview, 
+            interviewer=request.user,
+            outcome=final_outcome
+        )
+        
+        interview.interview_status = InterviewStatus.COMPLETED
+        interview.feedback = feedback.overall_comments
+
+        ratings = [r for r in [feedback.technical_skills_rating, feedback.communication_skills_rating, feedback.cultural_fit_rating] if r is not None]
+        if ratings:
+            interview.score = sum(ratings) / len(ratings)
+
+        interview.save()
+        
+        application = interview.application
+        application.status = ApplicationStatus.INTERVIEWED
+        application.save(update_fields=['status'])
+        
+        return Response(
+            {
+                "message": "Interview feedback submitted successfully.",
+                "feedback_details": InterviewFeedbackSerializer(feedback).data
+            },
+            status=status.HTTP_201_CREATED
+        )

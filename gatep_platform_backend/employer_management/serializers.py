@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company, JobPosting, Application, Interview, SavedJob
+from .models import Company, InterviewFeedback, JobPosting, Application, Interview, SavedJob
 from talent_management.models import CustomUser, TalentProfile
 from talent_management.serializers import FullResumeSerializer
 
@@ -511,3 +511,34 @@ class CandidateDashboardSerializer(serializers.ModelSerializer):
         return "N/A" # Or "0 years" if preferred
     
 ###################### nikita's code end ##############################
+
+
+
+
+
+
+
+
+class InterviewFeedbackSerializer(serializers.ModelSerializer):
+    """
+    Serializer for creating and viewing detailed interview feedback.
+    """
+    # Make interviewer details read-only, it will be set from the request user
+    interviewer_name = serializers.CharField(source='interviewer.username', read_only=True)
+
+    class Meta:
+        model = InterviewFeedback
+        fields = [
+            'interview', # This will be read-only in the view logic
+            'interviewer',
+            'interviewer_name',
+            'recommendation',
+            'technical_skills_rating',
+            'communication_skills_rating',
+            'cultural_fit_rating',
+            'strengths',
+            'weaknesses',
+            'overall_comments',
+            'submitted_at',
+        ]
+        read_only_fields = ('interview', 'interviewer', 'submitted_at', 'interviewer_name')
