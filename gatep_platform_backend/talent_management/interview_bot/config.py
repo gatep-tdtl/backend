@@ -6,9 +6,14 @@
 
 
 import os
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions" # Groq's OpenAI-compatible endpoint
-GROQ_MODEL_NAME = "llama3-8b-8192" # Using Llama 3 8B. You can change to "mixtral-8x7b-32768" or other suitable Groq models
+# GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions" # Groq's OpenAI-compatible endpoint
+# GROQ_MODEL_NAME = "llama3-8b-8192" # Using Llama 3 8B. You can change to "mixtral-8x7b-32768" or other suitable Groq models
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+# OpenAI's Chat Completion endpoint
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_MODEL_NAME = "gpt-3.5-turbo"  # or another OpenAI model of your choice
 
 # Define the default mock interview position
 MOCK_INTERVIEW_POSITION = "AI Engineer" # Added this line
