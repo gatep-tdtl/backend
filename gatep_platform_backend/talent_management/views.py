@@ -809,6 +809,83 @@ def extract_json(text):
     return text[start:end] if start != -1 and end != -1 else text
 
 
+# class RecommendedSkillsView(APIView):
+#     def post(self, request):
+#         serializer = RoleListSerializer(data=request.data)
+#         if not serializer.is_valid():
+#             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+#         selected_roles = serializer.validated_data['selected_roles']
+#         cache_key = f"skills_cache_{'_'.join(sorted(selected_roles))}"
+
+#         # Check cache
+#         cached_result = cache.get(cache_key)
+#         if cached_result:
+#             return Response(cached_result, status=200)
+
+#         # Build dynamic prompt
+#         if len(selected_roles) == 1:
+#             role = selected_roles[0]
+#             prompt = (
+#                     f"List 10 trending skills for each of the following roles: {roles}. "
+#                     "For each skill, include the demand percentage, increase over last year (as +%), and priority (High/Medium). "
+#                     "Return ONLY valid JSON as a response. Do NOT include markdown, explanations, or any extra text. "
+#                     "The response must be a JSON object with role names as keys and arrays of 10 skill objects as values."
+#                 )
+#         else:
+#             roles = ", ".join(selected_roles)
+#             prompt = (
+#                 f"List 10 trending skills for each of the following roles: {roles}. "
+#                 "For each skill, include the demand percentage, increase over last year (as +%), and priority (High/Medium). "
+#                 "Return the response as a JSON object with role names as keys and arrays of 10 skill objects as values. Like: "
+#                 "{"
+#                 "\"AI/ML Engineer\": [{\"skill\": \"MLOps\", \"demand\": \"95%\", \"increase\": \"+45%\", \"priority\": \"High Priority\"}, ...], "
+#                 "\"Data Scientist\": [...], "
+#                 "\"Business Analyst\": [...]"
+#                 "}"
+#             )
+
+#         try:
+#             response = client.chat.completions.create(
+#                 model="llama3-8b-8192",
+#                 messages=[{"role": "user", "content": prompt}]
+#             )
+#             raw_output = response.choices[0].message.content.strip()
+#             cleaned_output = extract_json(raw_output)
+#             if not cleaned_output:
+#                 return Response({"error": "AI model did not return JSON."}, status=500)
+#             parsed = json.loads(cleaned_output)
+#             cache.set(cache_key, parsed, timeout=60 * 60)
+#             return Response(parsed, status=200)
+#         except json.JSONDecodeError as e:
+#             return Response({"error": f"AI model returned invalid JSON: {raw_output}"}, status=500)
+#         except Exception as e:
+#             return Response({"error": str(e)}, status=500)
+
+import os
+import json
+import requests
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.core.cache import cache
+from .serializers import RoleListSerializer
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_MODEL_NAME = "gpt-4-turbo"
+
+
+def extract_json(text):
+    """Utility to extract JSON part safely from AI output."""
+    try:
+        start = text.index("{")
+        end = text.rindex("}") + 1
+        return text[start:end]
+    except ValueError:
+        return None
+
+
 class RecommendedSkillsView(APIView):
     def post(self, request):
         serializer = RoleListSerializer(data=request.data)
@@ -827,11 +904,11 @@ class RecommendedSkillsView(APIView):
         if len(selected_roles) == 1:
             role = selected_roles[0]
             prompt = (
-                    f"List 10 trending skills for each of the following roles: {roles}. "
-                    "For each skill, include the demand percentage, increase over last year (as +%), and priority (High/Medium). "
-                    "Return ONLY valid JSON as a response. Do NOT include markdown, explanations, or any extra text. "
-                    "The response must be a JSON object with role names as keys and arrays of 10 skill objects as values."
-                )
+                f"List 10 trending skills for the role: {role}. "
+                "For each skill, include the demand percentage, increase over last year (as +%), and priority (High/Medium). "
+                "Return ONLY valid JSON as a response. Do NOT include markdown, explanations, or any extra text. "
+                "The response must be a JSON object with role names as keys and arrays of 10 skill objects as values."
+            )
         else:
             roles = ", ".join(selected_roles)
             prompt = (
@@ -846,21 +923,37 @@ class RecommendedSkillsView(APIView):
             )
 
         try:
-            response = client.chat.completions.create(
-                model="llama3-8b-8192",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            raw_output = response.choices[0].message.content.strip()
+            headers = {
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            }
+
+            payload = {
+                "model": OPENAI_MODEL_NAME,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7
+            }
+
+            response = requests.post(OPENAI_API_URL, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+            raw_output = data["choices"][0]["message"]["content"].strip()
             cleaned_output = extract_json(raw_output)
             if not cleaned_output:
                 return Response({"error": "AI model did not return JSON."}, status=500)
+
             parsed = json.loads(cleaned_output)
             cache.set(cache_key, parsed, timeout=60 * 60)
             return Response(parsed, status=200)
-        except json.JSONDecodeError as e:
+
+        except json.JSONDecodeError:
             return Response({"error": f"AI model returned invalid JSON: {raw_output}"}, status=500)
         except Exception as e:
             return Response({"error": str(e)}, status=500)
+
 
 from django.core.cache import cache  # <--- ADD THIS LINE
  
