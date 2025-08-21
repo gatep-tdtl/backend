@@ -65,3 +65,60 @@ def call_llm_api(prompt_text, current_conversation_history=None, output_max_toke
         print(f"Error decoding JSON response from API: {e}")
         print(f"Response content: {response.text}")
         return None
+
+
+
+
+
+
+# # llm_utils.py
+# import requests
+# import json
+# from .import config
+
+# def call_llm_api(prompt_text, current_conversation_history=None, output_max_tokens=500):
+#     if not config.OPENAI_API_KEY:
+#         print("Error: OPENAI_API_KEY environment variable is not set. Please set it before running.")
+#         return None
+
+#     messages_for_api = []
+#     if current_conversation_history:
+#         for entry in current_conversation_history:
+#             if "parts" in entry and len(entry["parts"]) > 0:
+#                 role = "user" if entry["role"] == "user" else "assistant"
+#                 messages_for_api.append({"role": role, "content": entry["parts"][0]["text"]})
+#     messages_for_api.append({"role": "user", "content": prompt_text})
+
+#     payload = {
+#         "model": config.OPENAI_MODEL_NAME,
+#         "messages": messages_for_api,
+#         "temperature": 0.7,
+#         "max_tokens": output_max_tokens,
+#     }
+
+#     headers = {
+#         'Content-Type': 'application/json',
+#         'Authorization': f'Bearer {config.OPENAI_API_KEY}'
+#     }
+
+#     print(f"\n[AI Processing with OpenAI ({config.OPENAI_MODEL_NAME})...]")
+#     try:
+#         response = requests.post(config.OPENAI_API_URL, headers=headers, json=payload)
+#         response.raise_for_status()
+#         result = response.json()
+#         if (result and result.get('choices') and len(result['choices']) > 0 and 
+#            result['choices'][0].get('message') and result['choices'][0]['message'].get('content')):
+#             text_response = result['choices'][0]['message']['content']
+#             return text_response
+#         else:
+#             print(f"Error: Unexpected API response structure or no content. Response: {result}")
+#             return None
+#     except requests.exceptions.RequestException as e:
+#         print(f"Error calling OpenAI API: {e}")
+#         return None
+#     except json.JSONDecodeError as e:
+#         print(f"Error decoding JSON response from API: {e}")
+#         print(f"Response content: {response.text}")
+#         return None
+
+

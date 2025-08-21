@@ -315,6 +315,7 @@ class InterviewListItemSerializer(serializers.ModelSerializer):
 
 class TalentInterviewListSerializer(serializers.ModelSerializer):
     company_name = serializers.SerializerMethodField()
+    job_title = serializers.SerializerMethodField()  # <-- ADDED
     company_profile = serializers.SerializerMethodField()
     location = serializers.CharField()
     skills = serializers.SerializerMethodField()
@@ -326,12 +327,18 @@ class TalentInterviewListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Interview
         fields = [
-            'id', 'company_name', 'company_profile', 'location', 'skills',
+            'id', 'company_name', 'job_title', 'company_profile', 'location', 'skills', # <-- ADDED 'job_title'
             'status', 'date', 'time', 'type'
         ]
 
     def get_company_name(self, obj):
         return obj.application.job_posting.company.company_name
+
+    def get_job_title(self, obj):  # <-- ADDED
+        """
+        Returns the title of the job posting associated with the interview.
+        """
+        return obj.application.job_posting.title
 
     def get_company_profile(self, obj):
         # You can return a nested CompanySerializer or just the company id/url
