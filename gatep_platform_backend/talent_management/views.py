@@ -1811,58 +1811,132 @@ class MockInterviewReportView(APIView):
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-class MalpracticeDetectionView(APIView):
-    permission_classes = [IsAuthenticated] # Only authenticated users can trigger this
+# class MalpracticeDetectionView(APIView):
+#     permission_classes = [IsAuthenticated] # Only authenticated users can trigger this
 
+#     def post(self, request, *args, **kwargs):
+#         """
+#         Terminates the current in-progress mock interview due to detected malpractice.
+#         Expects 'type_of_malpractice' in the request body.
+#         """
+#         type_of_malpractice = request.data.get('type_of_malpractice')
+#         # We will use the current time for interview_end_time.
+#         # If 'time_of_malpractice' needs to be a separate, specific timestamp from the client,
+#         # you'll need to add a field to MockInterviewResult model and process it here.
+
+#         if not type_of_malpractice:
+#             return Response(
+#                 {"error": "Missing 'type_of_malpractice' in request body."},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         # Get the ID of the current interview from the session
+#         current_mock_interview_id = request.session.get('current_mock_interview_id')
+
+#         if not current_mock_interview_id:
+#             return Response(
+#                 {"error": "No active interview found for this user in the session."},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+
+#         try:
+#             # Retrieve the in-progress interview for the current user
+#             mock_interview = MockInterviewResult.objects.get(
+#                 id=current_mock_interview_id,
+#                 user=request.user, # Ensure the interview belongs to the authenticated user
+#                 status=MockInterviewResult.InterviewStatus.IN_PROGRESS # Only terminate if it's currently in progress
+#             )
+
+#             # Update the interview status for malpractice
+#             mock_interview.malpractice_detected = True
+#             mock_interview.malpractice_reason = f"Malpractice detected: {type_of_malpractice}"
+#             mock_interview.status = MockInterviewResult.InterviewStatus.TERMINATED_MALPRACTICE
+#             mock_interview.interview_end_time = timezone.now() # Set the end time
+#             mock_interview.save()
+
+#             # Clear session data to prevent further interaction with this interview
+#             request.session.pop('current_mock_interview_id', None)
+#             request.session.pop('current_round_name', None)
+#             request.session.pop('current_question_index', None)
+#             request.session.modified = True # Mark session as modified to ensure changes are saved
+
+#             # Clean up any associated proctoring files
+#             cleanup_proctor_files_api_context()
+
+#             return Response(
+#                 {
+#                     "message": "Interview terminated due to malpractice.",
+#                     "interview_id": mock_interview.id,
+#                     "malpractice_reason": mock_interview.malpractice_reason,
+#                     "status": mock_interview.status
+#                 },
+#                 status=status.HTTP_200_OK
+#             )
+
+#         except MockInterviewResult.DoesNotExist:
+#             return Response(
+#                 {"error": "No active interview found with the provided ID for this user, or interview is not in progress."},
+#                 status=status.HTTP_404_NOT_FOUND
+#             )
+#         except Exception as e:
+#             print(f"Error terminating interview due to malpractice: {e}")
+#             return Response(
+#                 {"error": f"An internal error occurred while terminating the interview: {e}"},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
+
+from .services import BeaconTokenAuthentication
+ 
+ 
+class MalpracticeDetectionView(APIView):
+    # ===================================================================
+    # ========== 2. SET THE AUTHENTICATION CLASS FOR THIS VIEW ==========
+    # ===================================================================
+    authentication_classes = [BeaconTokenAuthentication]
+    permission_classes = [IsAuthenticated] # This can now succeed
+ 
     def post(self, request, *args, **kwargs):
         """
         Terminates the current in-progress mock interview due to detected malpractice.
         Expects 'type_of_malpractice' in the request body.
         """
+        # ... your existing logic here, NO CHANGES NEEDED ...
         type_of_malpractice = request.data.get('type_of_malpractice')
-        # We will use the current time for interview_end_time.
-        # If 'time_of_malpractice' needs to be a separate, specific timestamp from the client,
-        # you'll need to add a field to MockInterviewResult model and process it here.
-
+ 
         if not type_of_malpractice:
             return Response(
                 {"error": "Missing 'type_of_malpractice' in request body."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-        # Get the ID of the current interview from the session
+ 
         current_mock_interview_id = request.session.get('current_mock_interview_id')
-
+ 
         if not current_mock_interview_id:
             return Response(
                 {"error": "No active interview found for this user in the session."},
                 status=status.HTTP_404_NOT_FOUND
             )
-
+ 
         try:
-            # Retrieve the in-progress interview for the current user
             mock_interview = MockInterviewResult.objects.get(
                 id=current_mock_interview_id,
-                user=request.user, # Ensure the interview belongs to the authenticated user
-                status=MockInterviewResult.InterviewStatus.IN_PROGRESS # Only terminate if it's currently in progress
+                user=request.user,
+                status=MockInterviewResult.InterviewStatus.IN_PROGRESS
             )
-
-            # Update the interview status for malpractice
+ 
             mock_interview.malpractice_detected = True
             mock_interview.malpractice_reason = f"Malpractice detected: {type_of_malpractice}"
             mock_interview.status = MockInterviewResult.InterviewStatus.TERMINATED_MALPRACTICE
-            mock_interview.interview_end_time = timezone.now() # Set the end time
+            mock_interview.interview_end_time = timezone.now()
             mock_interview.save()
-
-            # Clear session data to prevent further interaction with this interview
+ 
             request.session.pop('current_mock_interview_id', None)
             request.session.pop('current_round_name', None)
             request.session.pop('current_question_index', None)
-            request.session.modified = True # Mark session as modified to ensure changes are saved
-
-            # Clean up any associated proctoring files
-            cleanup_proctor_files_api_context()
-
+            request.session.modified = True
+ 
+            # cleanup_proctor_files_api_context()
+ 
             return Response(
                 {
                     "message": "Interview terminated due to malpractice.",
@@ -1872,7 +1946,7 @@ class MalpracticeDetectionView(APIView):
                 },
                 status=status.HTTP_200_OK
             )
-
+ 
         except MockInterviewResult.DoesNotExist:
             return Response(
                 {"error": "No active interview found with the provided ID for this user, or interview is not in progress."},
@@ -1883,7 +1957,7 @@ class MalpracticeDetectionView(APIView):
             return Response(
                 {"error": f"An internal error occurred while terminating the interview: {e}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            )  
         
 
 class MockInterviewReportListView(APIView):
