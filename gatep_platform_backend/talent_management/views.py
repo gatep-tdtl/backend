@@ -2010,6 +2010,8 @@ class FullInterviewPhotoCheckAPIView(APIView):
                 interview_photo_path = temp_captured.name
             
             # 4️⃣ Run AI check
+            print(resume_photo_path) 
+            print(interview_photo_path)
             result = run_full_interview_photo_check(resume_photo_path, interview_photo_path)
  
             # 5️⃣ Update malpractice_count if any fail
@@ -2036,6 +2038,84 @@ class FullInterviewPhotoCheckAPIView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+
+# class FullInterviewPhotoCheckAPIView(APIView):
+#     """
+#     API to run full AI interview image check.
+#     Uses resume photo from DB and captured image from request.
+#     Tracks malpractice_count in session.
+#     """
+#     permission_classes = [IsAuthenticated]
+ 
+#     def post(self, request):
+#         try:
+#             # 1️⃣ Malpractice count from session
+#             malpractice_count = request.session.get("malpractice_count", 0)
+ 
+#             # 2️⃣ Get reference resume photo path from DB
+#             try:
+#                 resume = Resume.objects.get(talent_id=request.user)
+#             except Resume.DoesNotExist:
+#                 return Response(
+#                     {"error": "Resume not found for this user."},
+#                     status=status.status.HTTP_404_NOT_FOUND
+#                 )
+#             if not resume.profile_photo:
+#                 return Response(
+#                     {"error": "No reference photo found in DB."},
+#                     status=status.status.HTTP_404_NOT_FOUND
+#                 )
+#             resume_photo_path = resume.profile_photo.path
+ 
+#             # 3️⃣ Get uploaded captured photo
+#             captured_file = request.FILES.get("captured")
+#             if not captured_file:
+#                 return Response(
+#                     {"error": "No interview photo uploaded (key: 'captured')."},
+#                     status=status.status.HTTP_400_BAD_REQUEST
+#                 )
+ 
+#             with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as temp_captured:
+#                 for chunk in captured_file.chunks():
+#                     temp_captured.write(chunk)
+#                 interview_photo_path = temp_captured.name
+            
+#             # 4️⃣ Run AI check
+#             result = run_full_interview_photo_check(resume_photo_path, interview_photo_path)
+ 
+#             # 5️⃣ Update malpractice_count if any fail
+#             #    ✅ CHANGE HERE: We now use the single 'success' flag from the new model's response.
+#             #    This is cleaner and more robust. If the AI model adds new checks in the future,
+#             #    this API code won't need to change as long as the 'success' flag is updated correctly.
+#             if not result.get("success", False):
+#                 malpractice_count += 1
+#                 request.session["malpractice_count"] = malpractice_count
+#                 request.session.modified = True
+ 
+#             # 6️⃣ Cleanup
+#             if os.path.exists(interview_photo_path):
+#                 os.remove(interview_photo_path)
+ 
+#             # 7️⃣ Append count to result
+#             result["malpractice_count"] = malpractice_count
+ 
+#             # Handle cases where the AI check itself fails (e.g., file not found)
+#             if not result.get("success", False) and "message" in result:
+#                  # You can decide if an early exit error from the AI module should be a 400 or 200
+#                  # A 200 is fine as the API itself worked, but the check failed.
+#                  return Response(result, status=status.HTTP_200_OK)
+
+#             return Response(result, status=status.HTTP_200_OK)
+ 
+#         except Exception as e:
+#             # It's good practice to also clean up the temp file in case of an exception
+#             if 'interview_photo_path' in locals() and os.path.exists(interview_photo_path):
+#                 os.remove(interview_photo_path)
+                
+#             return Response(
+#                 {"error": f"Internal server error: {str(e)}"},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 
 
 

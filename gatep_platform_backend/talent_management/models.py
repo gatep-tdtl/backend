@@ -161,7 +161,7 @@ class Resume(models.Model):
 
     # --- NEW FIELDS ---
     employee_level = models.CharField(
-        max_length=50,
+        max_length=100,
         choices=EmployeeLevelChoices.choices,
         blank=True,
         null=True,

@@ -1,3 +1,206 @@
+# # --- START OF FILE interview_cam.py ---
+
+# import cv2
+# import torch
+# from deepface import DeepFace
+# import mediapipe as mp
+# import numpy as np
+# import os
+
+# # ===================== Models ===================== #
+# # YOLOv5 model for object detection (phones, etc.)
+# print("Loading YOLOv5 model for object detection...")
+# model = torch.hub.load('ultralytics/yolov5', 'yolov5s', trust_repo=True)
+# print("YOLOv5 model loaded.")
+ 
+# # MediaPipe setup
+# mp_face_mesh = mp.solutions.face_mesh
+# mp_face_det = mp.solutions.face_detection
+ 
+ 
+# # ===================== STEP 0: Face Visibility ===================== #
+# def is_face_visible(image_path):
+#     """
+#     Returns (visible: bool, message: str|None)
+#     """
+#     image = cv2.imread(image_path)
+#     if image is None:
+#         return False, "Image not found ❌"
+ 
+#     with mp_face_det.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
+#         results = face_detection.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+#         if results.detections and len(results.detections) > 0:
+#             return True, None
+#         else:
+#             return False, "Face not visible (blurry/obstructed) ❌"
+ 
+ 
+# # ===================== STEP 1: Face Match (DeepFace) ===================== #
+# def verify_face_match(resume_photo_path, interview_photo_path):
+#     """
+#     Returns dict with keys: verified(bool), model(str), or {'error': ...}
+#     """
+#     try:
+#         result = DeepFace.verify(
+#             img1_path=resume_photo_path,
+#             img2_path=interview_photo_path,
+#             model_name='ArcFace',
+#             detector_backend='retinaface',
+#             distance_metric='cosine',
+#             enforce_detection=True
+#         )
+#         return {
+#             "verified": result.get("verified", False),
+#             "model": result.get("model")
+#         }
+#     except Exception as e:
+#         return {"error": str(e)}
+ 
+ 
+# # ===================== STEP 2: Orientation Rules ===================== #
+# def check_face_orientation(image_path,
+#                            yaw_thresh=0.06,
+#                            down_thresh=0.15):
+#     """
+#     Returns (allowed: bool, msg: str)
+#     """
+#     image = cv2.imread(image_path)
+#     if image is None:
+#         return False, "Image not found ❌"
+ 
+#     with mp_face_mesh.FaceMesh(static_image_mode=True,
+#                                max_num_faces=1,
+#                                refine_landmarks=True,
+#                                min_detection_confidence=0.5) as face_mesh:
+#         results = face_mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
+#         if not results.multi_face_landmarks:
+#             return False, "No face detected ❌"
+ 
+#         lm = results.multi_face_landmarks[0].landmark
+ 
+#         # Key landmarks
+#         nose_tip = lm[1]
+#         left_eye = lm[33]
+#         right_eye = lm[263]
+#         chin = lm[152]
+ 
+#         # Pitch (up/down)
+#         vert_ratio = (chin.y - nose_tip.y)
+ 
+#         # Yaw (left/right)
+#         eye_dist = abs(right_eye.x - left_eye.x) + 1e-6
+#         center_x = (left_eye.x + right_eye.x) / 2.0
+#         nose_offset = (nose_tip.x - center_x) / eye_dist  # signed
+ 
+#         debug_msg = f"(yaw={nose_offset:.3f}, pitch={vert_ratio:.3f})"
+ 
+#         # ---- PRIORITY: yaw first ----
+#         if nose_offset > yaw_thresh:
+#             return False, f"Face looking right ❌ {debug_msg}"
+#         if nose_offset < -yaw_thresh:
+#             return False, f"Face looking left ❌ {debug_msg}"
+ 
+#         # ---- Then pitch ----
+#         if vert_ratio > down_thresh:
+#             return True, f"Looking down allowed ✅ {debug_msg}"
+ 
+#         # Otherwise frontal
+#         return True, f"Frontal face detected ✅ {debug_msg}"
+ 
+ 
+# # ===================== STEP 3 & 4: Malpractice and People Detection ===================== #
+# def detect_yolo_objects(image_path):
+#     """
+#     Detects specific objects (person, cell phone) using YOLOv5.
+#     Returns (multiple_people: bool, malpractice: bool, detected_objects: list)
+#     """
+#     results = model(image_path)
+#     labels = results.pandas().xyxy[0]['name'].tolist()
+   
+#     # Count specific objects
+#     num_people = labels.count('person')
+#     num_cell_phones = labels.count('cell phone')
+   
+#     multiple_people = num_people > 1
+#     malpractice = num_cell_phones > 0
+   
+#     return multiple_people, malpractice, labels
+ 
+ 
+# # ===================== PIPELINE ===================== #
+# def run_full_interview_photo_check(resume_photo_path, interview_photo_path):
+#     if not os.path.isfile(resume_photo_path) or not os.path.isfile(interview_photo_path):
+#         return {'success': False, 'message': 'One or both image files not found ❌'}
+ 
+#     # Step 0: Face visibility
+#     visible, vis_msg = is_face_visible(interview_photo_path)
+#     if not visible:
+#         return {'success': False, 'message': vis_msg}
+ 
+#     # Step 1: Face match (performed before orientation check)
+#     match_result = verify_face_match(resume_photo_path, interview_photo_path)
+#     if 'error' in match_result:
+#         return {'success': False, 'match': False, 'message': f"Face verification error: {match_result['error']}"}
+ 
+#     # Step 2: Orientation
+#     allowed, orient_msg = check_face_orientation(interview_photo_path)
+ 
+#     # Step 3 & 4: Multiple people and malpractice detection using YOLO
+#     multiple_people, malpractice, detected_objects = detect_yolo_objects(interview_photo_path)
+ 
+#     # Determine final success status based on all checks
+#     final_success = match_result.get('verified') and allowed and not multiple_people and not malpractice
+ 
+#     # Build response
+#     response = {
+#         'success': final_success,
+#         'match': match_result.get('verified', False),
+#         'orientation_ok': allowed,
+#         'multiple_faces': multiple_people,
+#         'malpractice': malpractice,
+#         'detected_objects': detected_objects,
+#         'model_used': match_result.get('model'),
+#         'face_orientation_msg': orient_msg
+#     }
+ 
+#     # Summary message
+#     parts = []
+#     if match_result.get('verified', False):
+#         parts.append("Face matched ✅")
+#     else:
+#         parts.append("Face mismatch ❌ – person not same")
+ 
+#     # The orientation message from check_face_orientation already includes an icon
+#     parts.append(orient_msg)
+ 
+#     parts.append('multiple faces detected ❌' if multiple_people else 'no extra face detected ✅')
+#     parts.append('cell phone detected ❌ – possible malpractice' if malpractice else 'no malpractice detected ✅')
+   
+#     response['message'] = ', '.join(parts)
+ 
+#     return response
+
+# # --- END OF FILE interview_cam.py ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 """
 Interview Proctoring Module (interview_cam.py)
 
