@@ -170,7 +170,7 @@ DEFAULT_FROM_EMAIL = 'support@thedatatechlabs.com'
 
 HFF_TOKEN = os.environ.get("HFF_TOKEN")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 # Django REST Framework settings to use JWT as the default authentication
 REST_FRAMEWORK = {
