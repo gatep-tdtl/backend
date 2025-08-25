@@ -1,6 +1,6 @@
 from django.urls import path
 from employer_management.views import (
-    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmployerAnalyticsDemographicAPIView, EmployerAnalyticsTrendsAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewFeedbackView, InterviewStatusUpdateView,
+    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmpDemographicsView, EmployerAnalyticsDemographicAPIView, EmployerAnalyticsTrendsAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewFeedbackView, InterviewStatusUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView, PotentialCandidateMatchView, PublishJobPostingView,
@@ -59,6 +59,13 @@ urlpatterns = [
     path('hiring-analytics/top-matching-candidates/',HiringAnalyticsDashboardViewSet.as_view({'get': 'top_matching_candidates'}),name='hiring-analytics-top-candidates'),
     path('employer-dashboard/', EmployerDashboardAPIView.as_view(), name='employer-dashboard'),
     path('employer-analytics/demographic/', EmployerAnalyticsDemographicAPIView.as_view(), name='employer-analytics-demographic'),
-    path('employer-analytics/trends', EmployerAnalyticsTrendsAPIView.as_view(), name='employer-analytics-job-posting-performance')
+    path('employer-analytics/trends', EmployerAnalyticsTrendsAPIView.as_view(), name='employer-analytics-job-posting-performance'),
+    ######### demographic ############
+    path('demographics/', EmpDemographicsView.as_view(), name='demographics-base'),
+    path('demographics/job/<str:job_filter>/', EmpDemographicsView.as_view(), name='demographics-by-job'),
+    path('demographics/time/<str:time_range>/', EmpDemographicsView.as_view(), name='demographics-by-time'),
+    path('demographics/job/<str:job_filter>/time/<str:time_range>/', EmpDemographicsView.as_view(), name='demographics-by-job-and-time'),
+    ########## demographic end ##########3
 ]
+
     

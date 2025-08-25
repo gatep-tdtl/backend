@@ -1193,3 +1193,89 @@ class InterviewFeedbackView(APIView):
             },
             status=status.HTTP_201_CREATED
         )
+
+
+        from collections import Counter
+from django.db.models import Count
+from employer_management.models import Application, JobPosting   
+from talent_management.models import Resume
+ 
+ 
+class EmpDemographicsView(APIView):
+    """
+    Provides Skill and Location distribution for candidates,
+    filtered by time range and job role from the URL path.
+    This version uses the Django ORM for safety and clarity.
+    """
+    # permission_classes = [permissions.IsAuthenticated]
+ 
+    def get(self, request, job_filter=None, time_range=None, format=None):
+       
+        # --- 1. Get and Set Filter Parameters (Consistent with other API) ---
+        final_job_filter = job_filter if job_filter else 'All Jobs'
+        final_time_range = time_range if time_range else 'Last 6 Months'
+ 
+        end_date = timezone.now()
+        date_threshold = {
+            'Last Month': end_date - timedelta(days=30),
+            'Last 3 Months': end_date - timedelta(days=90),
+            'Last 6 Months': end_date - timedelta(days=180),
+            'Last Year': end_date - timedelta(days=365)
+        }.get(final_time_range, end_date - timedelta(days=180))
+ 
+        # --- 2. Get the Relevant Applications using the Django ORM ---
+        applications_qs = Application.objects.filter(application_date__gte=date_threshold)
+ 
+        if final_job_filter != 'All Jobs':
+            applications_qs = applications_qs.filter(job_posting__title=final_job_filter)
+ 
+        # Get the unique IDs of talents who applied based on the filters
+        relevant_talent_ids = applications_qs.values_list('talent_id', flat=True).distinct()
+ 
+        # --- 3. Calculate Candidate Location Distribution ---
+        # Get all resumes for the filtered talents
+        relevant_resumes = Resume.objects.filter(talent_id__in=relevant_talent_ids)
+ 
+        # Group by district and count candidates
+        location_counts = relevant_resumes.exclude(current_district__isnull=True).exclude(current_district__exact='') \
+                                         .values('current_district') \
+                                         .annotate(candidates=Count('id')) \
+                                         .order_by('-candidates') # Order by most popular
+       
+        # Format for the final API response
+        candidate_locations = [
+            {"location": loc['current_district'], "candidates": loc['candidates']}
+            for loc in location_counts
+        ]
+ 
+        # --- 4. Calculate Skill Distribution ---
+        skill_counter = Counter()
+        # We process the skills in Python for flexibility
+        # Assuming skills in your Resume model are a comma-separated string
+        for resume in relevant_resumes:
+            if resume.skills:
+                skills = [skill.strip().lower() for skill in resume.skills.split(',') if skill.strip()]
+                skill_counter.update(skills)
+       
+        # Format for the final API response, showing top 20 skills
+        skill_distribution = [
+            {"skill": skill, "count": count}
+            for skill, count in skill_counter.most_common(20)
+        ]
+ 
+        # --- 5. Prepare Filter Options for Frontend Dropdowns ---
+        # This ensures "Business Analyst" or any other job will appear if it's in your database
+        all_job_roles = list(JobPosting.objects.values_list('title', flat=True).distinct().order_by('title'))
+        all_job_roles.insert(0, "All Jobs")
+        time_range_options = ['Last Month', 'Last 3 Months', 'Last 6 Months', 'Last Year']
+ 
+        # --- 6. Build the Final Response ---
+        data = {
+            "skill_distribution": skill_distribution,
+            "candidate_locations": candidate_locations,
+            "filter_options": {
+                "job_roles": all_job_roles,
+                "time_ranges": time_range_options
+            }
+        }
+        return Response(data, status=status.HTTP_200_OK)
