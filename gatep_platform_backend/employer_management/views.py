@@ -1279,3 +1279,69 @@ class EmpDemographicsView(APIView):
             }
         }
         return Response(data, status=status.HTTP_200_OK)
+    
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from employer_management.models import Application
+from talent_management.models import Resume, CustomUser
+
+class TalentListByStatusAPIView(APIView):
+    """
+    GET: /api/talents/by-status/?status=INTERVIEWED
+    Returns all talents whose application status matches the given status.
+    """
+    def get(self, request):
+        status_param = request.query_params.get('status')
+        if not status_param:
+            return Response({"error": "Status parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        applications = Application.objects.filter(status=status_param).select_related('talent')
+        talent_ids = applications.values_list('talent_id', flat=True).distinct()
+        resumes = Resume.objects.filter(talent_id__in=talent_ids, is_deleted=False).order_by('-updated_at')
+
+        result = []
+        for resume in resumes:
+            user = resume.talent_id
+            result.append({
+                "name": resume.name if resume.name else user.get_full_name() or user.username,
+                "email": resume.email if resume.email else user.email,
+                "location": resume.current_city,
+                "profile_photo": request.build_absolute_uri(resume.profile_photo.url) if resume.profile_photo else None,
+                "skills": resume.skills,
+                "global_readiness_score": getattr(resume, 'global_readiness_score', None)
+            })
+
+        return Response(result, status=status.HTTP_200_OK)
+
+
+
+class ScheduledInterviewTalentListAPIView(APIView):
+    """
+    GET: /api/job-postings/<job_posting_id>/scheduled-interviews-talents/
+    Returns all talents with scheduled or rescheduled interviews for a given job posting.
+    """
+    def get(self, request, job_posting_id):
+        # Get all scheduled or rescheduled interviews for the job posting
+        interviews = Interview.objects.filter(
+            application__job_posting_id=job_posting_id,
+            interview_status__in=['Scheduled', 'Rescheduled']
+        ).select_related('application__talent')
+
+        talent_ids = interviews.values_list('application__talent_id', flat=True).distinct()
+        resumes = Resume.objects.filter(talent_id__in=talent_ids, is_deleted=False).order_by('-updated_at')
+
+        result = []
+        for resume in resumes:
+            user = resume.talent_id
+            result.append({
+                "name": resume.name if resume.name else user.get_full_name() or user.username,
+                "email": resume.email if resume.email else user.email,
+                "location": resume.current_city,
+                "profile_photo": request.build_absolute_uri(resume.profile_photo.url) if resume.profile_photo else None,
+                "skills": resume.skills,
+                "global_readiness_score": getattr(resume, 'global_readiness_score', None)
+            })
+
+        return Response(result, status=status.HTTP_200_OK)

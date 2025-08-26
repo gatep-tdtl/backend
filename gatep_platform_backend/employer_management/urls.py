@@ -4,7 +4,7 @@ from employer_management.views import (
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView, PotentialCandidateMatchView, PublishJobPostingView,
-    SaveJobView, TalentInterviewListView, UnsaveJobView, ListSavedJobsView,
+    SaveJobView, ScheduledInterviewTalentListAPIView, TalentInterviewListView, TalentListByStatusAPIView, UnsaveJobView, ListSavedJobsView,
     EmployerApplicationListForJobView, EmployerApplicationDetailView,
     JobListWithMatchingScoreAPIView,
     EmployerCompanyView , EmployerCompanyDetailView
@@ -33,10 +33,12 @@ urlpatterns = [
     path('jobpostings/<int:pk>/publish/', PublishJobPostingView.as_view(), name='jobposting-publish'),
     path('jobpostings/<int:pk>/close/', CloseJobPostingView.as_view(), name='jobposting-close'),
     path('job-postings/<int:job_posting_id>/potential-candidates/', PotentialCandidateMatchView.as_view(), name='job-potential-candidates'),
+    path('job-postings/talents/by-status/', TalentListByStatusAPIView.as_view(), name='talent-list-by-status'),
     # Interviews
     path('interviews/', InterviewListCreateView.as_view(), name='interview-list-create'),
     path('interviews/<int:pk>/', InterviewDetailView.as_view(), name='interview-detail'),
     path('talent/interviews/', TalentInterviewListView.as_view(), name='talent-interview-list'),
+     path('job-postings/<int:job_posting_id>/scheduled-interviews-talents/', ScheduledInterviewTalentListAPIView.as_view(), name='scheduled-interviews-talents'),
     path('interviews/<int:pk>/update-status/', InterviewStatusUpdateView.as_view(), name='interview-update-status'),
     path('interviews/<int:interview_pk>/submit-feedback/', InterviewFeedbackView.as_view(), name='submit-interview-feedback'),
     path('interviews/<int:interview_pk>/feedback/', InterviewFeedbackView.as_view(), name='interview-feedback'),
