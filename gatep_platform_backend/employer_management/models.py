@@ -24,6 +24,7 @@ class ApplicationStatus(models.TextChoices):
     WITHDRAWN = 'WITHDRAWN', 'Withdrawn'
     DELETED = 'DELETED', 'Deleted'
     SCHEDULED = 'SCHEDULED', 'Scheduled'
+    PENDING = 'PENDING', 'Pending'
 
 class InterviewType(models.TextChoices):
     INITIAL_SCREEN = 'INITIAL_SCREEN', 'Initial Screen'

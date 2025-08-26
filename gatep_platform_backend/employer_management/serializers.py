@@ -250,6 +250,8 @@ class ApplicationDetailSerializer(serializers.ModelSerializer):
 class InterviewListItemSerializer(serializers.ModelSerializer):
     candidate_name = serializers.SerializerMethodField()
     job_title = serializers.SerializerMethodField()
+    profile_photo = serializers.SerializerMethodField()
+    talent_current_location = serializers.SerializerMethodField()
     experience_level = serializers.SerializerMethodField()
     location = serializers.SerializerMethodField()
     interview_date = serializers.SerializerMethodField()
@@ -266,6 +268,8 @@ class InterviewListItemSerializer(serializers.ModelSerializer):
             'candidate_name',
             'job_title',
             'experience_level',
+            'talent_current_location',      # <-- Add this
+            'profile_photo',         # <-- Add this
             'location',
             'interview_date',
             'interview_time',
@@ -279,6 +283,19 @@ class InterviewListItemSerializer(serializers.ModelSerializer):
         # Assuming obj.application.talent has first_name and last_name
         user = getattr(obj.application.talent, 'user', obj.application.talent)
         return f"{user.first_name} {user.last_name}".strip() or user.username
+
+    def get_profile_photo(self, obj):
+        resume = Resume.objects.filter(talent_id=obj.application.talent, is_deleted=False).order_by('-updated_at').first()
+        request = self.context.get('request')
+        if resume and resume.profile_photo and hasattr(resume.profile_photo, 'url'):
+            return request.build_absolute_uri(resume.profile_photo.url) if request else resume.profile_photo.url
+        return None
+
+    def get_talent_current_location(self, obj):
+        resume = Resume.objects.filter(talent_id=obj.application.talent, is_deleted=False).order_by('-updated_at').first()
+        if resume and resume.current_city:
+            return resume.current_city
+        return None
 
     def get_job_title(self, obj):
         return obj.application.job_posting.title if obj.application and obj.application.job_posting else ""

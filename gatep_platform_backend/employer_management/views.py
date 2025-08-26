@@ -1138,41 +1138,48 @@ class InterviewFeedbackView(APIView):
     @transaction.atomic
     def post(self, request, interview_pk, *args, **kwargs):
         interview = get_object_or_404(Interview, pk=interview_pk)
-        
+
         # Permission check specific for POSTing (only employers should submit feedback)
         if not request.user.is_employer_role:
-             raise PermissionDenied("Only employer users can submit interview feedback.")
+            raise PermissionDenied("Only employer users can submit interview feedback.")
 
         self.check_object_permissions(request, interview)
-        
-        if interview.interview_status != InterviewStatus.SCHEDULED:
+
+        # Allow feedback for both 'Scheduled' and 'Rescheduled' interviews
+        if interview.interview_status not in [InterviewStatus.SCHEDULED, InterviewStatus.RESCHEDULED]:
             return Response(
-                {"error": "Feedback can only be submitted for 'Scheduled' interviews."},
+                {"error": "Feedback can only be submitted for 'Scheduled' or 'Rescheduled' interviews."},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # Check if feedback already exists to prevent duplicates
         if hasattr(interview, 'feedback_details'):
             return Response(
                 {"error": "Feedback has already been submitted for this interview."},
-                status=status.HTTP_409_CONFLICT # 409 Conflict is a good status code here
+                status=status.HTTP_409_CONFLICT
             )
 
         serializer = InterviewFeedbackSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         recommendation = serializer.validated_data.get('recommendation')
+        # Set interview outcome and application status based on recommendation
         if recommendation in [FeedbackRecommendation.STRONG_HIRE, FeedbackRecommendation.HIRE]:
             final_outcome = InterviewOutcome.PASSED
-        else:
+            new_app_status = ApplicationStatus.HIRED
+        elif recommendation == FeedbackRecommendation.NOT_SURE:
             final_outcome = InterviewOutcome.FAILED
-            
+            new_app_status = ApplicationStatus.PENDING
+        else:  # NO_HIRE or other
+            final_outcome = InterviewOutcome.FAILED
+            new_app_status = ApplicationStatus.REJECTED
+
         feedback = serializer.save(
-            interview=interview, 
+            interview=interview,
             interviewer=request.user,
             outcome=final_outcome
         )
-        
+
         interview.interview_status = InterviewStatus.COMPLETED
         interview.feedback = feedback.overall_comments
 
@@ -1181,11 +1188,11 @@ class InterviewFeedbackView(APIView):
             interview.score = sum(ratings) / len(ratings)
 
         interview.save()
-        
+
         application = interview.application
-        application.status = ApplicationStatus.INTERVIEWED
+        application.status = new_app_status
         application.save(update_fields=['status'])
-        
+
         return Response(
             {
                 "message": "Interview feedback submitted successfully.",
