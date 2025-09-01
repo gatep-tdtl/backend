@@ -7,6 +7,7 @@ from .views import (
     
     AdminDashboardAPIView,
     GlobalOverviewAPIView,
+    NotificationView,
     TalentFilterOptionsAPIView,
     TalentHeatmapAPIView,
     TalentHeatmapDashboardRoleAndCertification,
@@ -34,7 +35,8 @@ urlpatterns = [
     path('talent-heatmap/', TalentHeatmapAPIView.as_view(), name='talent-heatmap'), # not working because of userrole not found
     path('talent_heatmap/RoleAndCertifications/' , TalentHeatmapDashboardRoleAndCertification.as_view(), name='talent-heatmap-role-and-certifications'),
     path('talent-heatmap-institute-wise/', TalentHeatmapInstituteWiseAPIView.as_view(), name='talent-heatmap-institute-wise') , # done
-    path('talent-heatmap-filter-options/', TalentFilterOptionsAPIView.as_view(), name='talent_filter_options_api')
+    path('talent-heatmap-filter-options/', TalentFilterOptionsAPIView.as_view(), name='talent_filter_options_api'),
+    path('notifications/', NotificationView.as_view(), name='notifications')
    # path('admin/analytics-dashboard/', AdminAnalyticsDashboardAPIView.as_view(), name='admin-analytics-dashboard'),  # Added AdminAnalyticsDashboardAPIView
  # Renamed for clarity
     # System Health Status ViewSet - Manually defined URLs for list/create and detail operations

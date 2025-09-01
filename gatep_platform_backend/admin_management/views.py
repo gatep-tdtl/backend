@@ -1746,3 +1746,126 @@ class TalentHeatmapInstituteWiseAPIView(APIView):
 
 
 
+
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+ 
+from employer_management.models import Company, JobPosting, Interview, Application
+from talent_management.models import TalentProfile  # ✅ import TalentProfile
+ 
+ 
+class NotificationView(APIView):
+    permission_classes = [IsAuthenticated]
+ 
+    def get(self, request):
+        user = request.user
+        notifications = []
+ 
+        # 🟢 ADMIN Notifications
+        if user.user_role == "ADMIN":
+            total_employers = Company.objects.count()
+            total_jobs = JobPosting.objects.count()
+            total_talents = Application.objects.values("talent").distinct().count()
+            total_interviews = Interview.objects.count()
+ 
+            notifications.append({
+                "title": "Admin Dashboard",
+                "description": f"Employers: {total_employers}, Jobs: {total_jobs}, "
+                               f"Talents: {total_talents}, Interviews: {total_interviews}",
+                "type": "info"
+            })
+ 
+        # 🟢 EMPLOYER Notifications
+        elif user.user_role == "EMPLOYER":
+            try:
+                company = Company.objects.get(user=user)
+ 
+                job_count = JobPosting.objects.filter(company=company).count()
+                app_count = Application.objects.filter(job_posting__company=company).count()
+                interviews = Interview.objects.filter(application__job_posting__company=company)
+ 
+                notifications.extend([
+                    {
+                        "title": "Company Created",
+                        "description": f"Your company {company.company_name} is registered.",
+                        "type": "success"
+                    },
+                    {
+                        "title": "Jobs Posted",
+                        "description": f"You have posted {job_count} jobs.",
+                        "type": "info"
+                    },
+                    {
+                        "title": "Applications Received",
+                        "description": f"{app_count} talents have applied to your jobs.",
+                        "type": "info"
+                    },
+                    {
+                        "title": "Interviews Status",
+                        "description": f"Scheduled: {interviews.filter(interview_status='Scheduled').count()}, "
+                                       f"Completed: {interviews.filter(interview_status='Completed').count()}, "
+                                       f"Cancelled: {interviews.filter(interview_status='Cancelled').count()}",
+                        "type": "warning"
+                    }
+                ])
+            except Company.DoesNotExist:
+                notifications.append({
+                    "title": "No Company Found",
+                    "description": "You haven’t registered your company yet.",
+                    "type": "error"
+                })
+ 
+        # 🟢 TALENT Notifications
+        elif user.user_role == "TALENT":
+            try:
+                # ✅ TalentProfile linked to CustomUser
+                talent_profile = user.talentprofile  
+ 
+                # ✅ Applications and Interviews need CustomUser (not TalentProfile)
+                apps = Application.objects.filter(talent=user)
+                interviews = Interview.objects.filter(application__talent=user)
+ 
+                notifications.extend([
+                    {
+                        "title": "Applications",
+                        "description": f"You have applied to {apps.count()} jobs.",
+                        "type": "info"
+                    },
+                    {
+                        "title": "Interview Updates",
+                        "description": f"Scheduled: {interviews.filter(interview_status='Scheduled').count()}, "
+                                       f"Rescheduled: {interviews.filter(interview_status='Rescheduled').count()}, "
+                                       f"Completed: {interviews.filter(interview_status='Completed').count()}",
+                        "type": "success"
+                    },
+                    {
+                        "title": "Profile",
+                        "description": "Profile completed ✅" if getattr(user, "is_profile_completed", False) else "Profile incomplete ❌",
+                        "type": "warning"
+                    }
+                ])
+ 
+            except TalentProfile.DoesNotExist:
+                notifications.extend([
+                    {
+                        "title": "Applications",
+                        "description": "You haven’t applied to any jobs yet.",
+                        "type": "info"
+                    },  
+                    {
+                        "title": "Interview Updates",
+                        "description": "No interviews scheduled yet.",
+                        "type": "success"
+                    },
+                    {
+                        "title": "Profile",
+                        "description": "You haven’t completed your talent profile yet.",
+                        "type": "error"
+                    }
+                ])
+ 
+        return Response({"notifications": notifications})

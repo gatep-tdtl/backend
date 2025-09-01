@@ -1166,13 +1166,13 @@ class InterviewFeedbackView(APIView):
         # Set interview outcome and application status based on recommendation
         if recommendation in [FeedbackRecommendation.STRONG_HIRE, FeedbackRecommendation.HIRE]:
             final_outcome = InterviewOutcome.PASSED
-            new_app_status = ApplicationStatus.HIRED
+            new_app_status = ApplicationStatus.INTERVIEWED
         elif recommendation == FeedbackRecommendation.NOT_SURE:
             final_outcome = InterviewOutcome.FAILED
-            new_app_status = ApplicationStatus.PENDING
+            new_app_status = ApplicationStatus.INTERVIEWED
         else:  # NO_HIRE or other
             final_outcome = InterviewOutcome.FAILED
-            new_app_status = ApplicationStatus.REJECTED
+            new_app_status = ApplicationStatus.INTERVIEWED
 
         feedback = serializer.save(
             interview=interview,
