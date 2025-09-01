@@ -1352,3 +1352,70 @@ class ScheduledInterviewTalentListAPIView(APIView):
             })
 
         return Response(result, status=status.HTTP_200_OK)
+
+
+
+
+class CompletedInterviewCandidateListAPIView(APIView):
+    """
+    Lists all candidates whose interview status is 'Completed'.
+    Only the employer who owns the interview's job posting can access.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsEmployerUser]
+
+    def get(self, request):
+        # Get employer's company
+        employer_company = getattr(request.user, 'employer_company', None)
+        if not employer_company:
+            return Response({"detail": "You do not own any company."}, status=status.HTTP_403_FORBIDDEN)
+
+        # Only interviews for jobs owned by this employer
+        interviews = Interview.objects.filter(
+            interview_status=InterviewStatus.COMPLETED,
+            application__job_posting__company=employer_company
+        ).select_related(
+            'application__job_posting', 'application__talent'
+        ).prefetch_related('feedback_details')
+
+        result = []
+        for interview in interviews:
+            application = interview.application
+            job_posting = application.job_posting
+            talent = application.talent
+            feedback = getattr(interview, 'feedback_details', None)
+            result.append({
+                "job_posting_id": job_posting.id,
+                "job_posting_title": job_posting.title,
+                "application_id": application.id,
+                "interview_id": interview.id,
+                "talent_name": talent.get_full_name() or talent.username,
+                "application_status": application.status,
+                "interview_status": interview.interview_status,
+                "technical_skills_rating": getattr(feedback, "technical_skills_rating", None) if feedback else None,
+                "overall_comments": getattr(feedback, "overall_comments", "") if feedback else "",
+            })
+        return Response(result)
+
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, permissions
+from .models import Application, ApplicationStatus
+from django.shortcuts import get_object_or_404
+from employer_management.permissions import IsApplicationOwnerOrJobOwner
+
+class ApplicationOfferExtendAPIView(APIView):
+    """
+    API to change the status of an application to OFFER_EXTENDED.
+    Only the employer who owns the job posting or the applicant can perform this.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsApplicationOwnerOrJobOwner]
+
+    def post(self, request, pk):
+        application = get_object_or_404(Application, pk=pk)
+        self.check_object_permissions(request, application)
+        application.status = ApplicationStatus.OFFER_EXTENDED
+        application.save(update_fields=['status'])
+        return Response({"detail": "Application status updated to OFFER_EXTENDED."}, status=status.HTTP_200_OK)

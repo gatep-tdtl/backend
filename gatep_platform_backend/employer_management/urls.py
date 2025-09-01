@@ -1,6 +1,6 @@
 from django.urls import path
 from employer_management.views import (
-    ApplicationDeleteView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, EmpDemographicsView, EmployerAnalyticsDemographicAPIView, EmployerAnalyticsTrendsAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewFeedbackView, InterviewStatusUpdateView,
+    ApplicationDeleteView, ApplicationOfferExtendAPIView, ApplicationStatusUpdateView, CloseJobPostingView, CombinedDashboardView, CompanyListCreateView, CompanyDetailView, CompletedInterviewCandidateListAPIView, EmpDemographicsView, EmployerAnalyticsDemographicAPIView, EmployerAnalyticsTrendsAPIView, EmployerCompanyUpdateView, EmployerDashboardAPIView, EmployerTalentJobMatchScoreAPIView, HiringAnalyticsDashboardViewSet, InterviewFeedbackView, InterviewStatusUpdateView,
     JobPostingListCreateView, JobPostingDetailView,
     ApplicationListCreateView, ApplicationDetailView,
     InterviewListCreateView, InterviewDetailView, PotentialCandidateMatchView, PublishJobPostingView,
@@ -26,7 +26,7 @@ urlpatterns = [
     path('applications/<int:pk>/', ApplicationDetailView.as_view(), name='application-detail'),
     path('applications/<int:pk>/update-status/', ApplicationStatusUpdateView.as_view(), name='application-update-status'),
     path('applications/<int:pk>/delete/', ApplicationDeleteView.as_view(), name='application-delete'),
-
+    path('applications/<int:pk>/offer-extend/', ApplicationOfferExtendAPIView.as_view(), name='application-offer-extend'),
     # Employer-Specific Applications
     path('job-postings/<int:job_posting_id>/applications/', EmployerApplicationListForJobView.as_view(), name='employer-job-applications-list'),
     path('job-postings/<int:job_posting_id>/applications/<int:pk>/', EmployerApplicationDetailView.as_view(), name='employer-job-application-detail'),
@@ -42,6 +42,7 @@ urlpatterns = [
     path('interviews/<int:pk>/update-status/', InterviewStatusUpdateView.as_view(), name='interview-update-status'),
     path('interviews/<int:interview_pk>/submit-feedback/', InterviewFeedbackView.as_view(), name='submit-interview-feedback'),
     path('interviews/<int:interview_pk>/feedback/', InterviewFeedbackView.as_view(), name='interview-feedback'),
+    path('interviews/completed-candidates/', CompletedInterviewCandidateListAPIView.as_view(), name='completed-interview-candidates'),
    # 🔹 Saved Jobs
     path('saved-jobs/', ListSavedJobsView.as_view(), name='saved-jobs-list'),
     path('saved-jobs/save/', SaveJobView.as_view(), name='save-job'),
@@ -51,7 +52,7 @@ urlpatterns = [
     path('job-postings/ai-score/', JobListWithMatchingScoreAPIView.as_view(), name='jobposting-ai-score'),
   
     # AI Score to Talent
-     path('job-postings/ai-score-totalent/<int:job_posting_id>/<int:application_id>/', EmployerTalentJobMatchScoreAPIView.as_view(),  name='job-application-ai-score'),
+    path('job-postings/ai-score-totalent/<int:job_posting_id>/<int:application_id>/', EmployerTalentJobMatchScoreAPIView.as_view(),  name='job-application-ai-score'),
 
     # Employer Company
     path('my-company/', EmployerCompanyView.as_view(), name='employer-company'),
