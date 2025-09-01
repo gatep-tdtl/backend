@@ -653,8 +653,8 @@ class ApplicationStatusUpdateView(generics.UpdateAPIView):
         # A talent user might pass the IsApplicationOwnerOrJobOwner check,
         # but employers should be the only ones changing status here (except for withdrawals).
         # The IsEmployerUser permission class already blocks non-employers.
-        if not request.user.is_employer_role:
-             raise PermissionDenied("You do not have permission to change the application status.")
+        # if not request.user.is_employer_role:
+        #      raise PermissionDenied("You do not have permission to change the application status.")
 
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
@@ -664,7 +664,7 @@ class ApplicationStatusUpdateView(generics.UpdateAPIView):
         # On success, return the full representation of the application
         # using the more detailed serializer for a better frontend experience.
         response_serializer = ApplicationDetailSerializer(instance, context={'request': request})
-        return Response("thank you prathamesh, i am very grateful to you for making this api. " + request.data['status']+" successfully ", status=status.HTTP_200_OK)
+        return Response(request.data['status']+" successfully ", status=status.HTTP_200_OK)
 
 
 class ApplicationDeleteView(generics.DestroyAPIView):

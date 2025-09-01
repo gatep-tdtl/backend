@@ -901,26 +901,40 @@ class RecommendedSkillsView(APIView):
             return Response(cached_result, status=200)
 
         # Build dynamic prompt
-        if len(selected_roles) == 1:
-            role = selected_roles[0]
-            prompt = (
-                f"List 10 trending skills for the role: {role}. "
-                "For each skill, include the demand percentage, increase over last year (as +%), and priority (High/Medium). "
-                "Return ONLY valid JSON as a response. Do NOT include markdown, explanations, or any extra text. "
-                "The response must be a JSON object with role names as keys and arrays of 10 skill objects as values."
-            )
-        else:
-            roles = ", ".join(selected_roles)
-            prompt = (
-                f"List 10 trending skills for each of the following roles: {roles}. "
-                "For each skill, include the demand percentage, increase over last year (as +%), and priority (High/Medium). "
-                "Return the response as a JSON object with role names as keys and arrays of 10 skill objects as values. Like: "
-                "{"
-                "\"AI/ML Engineer\": [{\"skill\": \"MLOps\", \"demand\": \"95%\", \"increase\": \"+45%\", \"priority\": \"High Priority\"}, ...], "
-                "\"Data Scientist\": [...], "
-                "\"Business Analyst\": [...]"
-                "}"
-            )
+        role_list_str = ", ".join(selected_roles)
+        
+        # Define the desired JSON structure as an example in the prompt
+        json_example = {
+            "RoleName": [
+                {"skill": "SkillName1", "demand": "XX%", "increase": "+YY%", "priority": "PriorityLevel"},
+                {"skill": "SkillName2", "demand": "XX%", "increase": "+YY%", "priority": "PriorityLevel"}
+                # ... up to 10 skills
+            ]
+        }
+        
+        prompt = (
+            f"List exactly 10 trending skills for each of the following roles: {role_list_str}. "
+            "For each skill, provide its 'skill' name, 'demand' percentage, "
+            "'increase' over last year (as +%), and 'priority' (High/Medium). "
+            "The response MUST be a valid JSON object. Do NOT include markdown, explanations, or any extra text outside the JSON. "
+            "The JSON object must have role names as top-level keys. Each role key should map to an array of 10 skill objects. "
+            "Each skill object must contain the keys: 'skill', 'demand', 'increase', and 'priority'. "
+            f"Here is the exact JSON structure you must follow, replacing 'RoleName' and filling in the skill details: {json.dumps(json_example, indent=2)}"
+        )
+        # For the extract_json function, ensure it can handle cases where the model might still
+        # include some conversational text before or after the JSON. A robust extract_json
+        # would look for the first '{' and the last '}' to isolate the JSON.
+        def extract_json(text):
+            try:
+                # Find the first occurrence of '{' and the last occurrence of '}'
+                start = text.find('{')
+                end = text.rfind('}')
+                if start != -1 and end != -1 and end > start:
+                    json_str = text[start : end + 1]
+                    return json_str
+                return None
+            except Exception:
+                return None
 
         try:
             headers = {
@@ -942,8 +956,9 @@ class RecommendedSkillsView(APIView):
 
             raw_output = data["choices"][0]["message"]["content"].strip()
             cleaned_output = extract_json(raw_output)
+            
             if not cleaned_output:
-                return Response({"error": "AI model did not return JSON."}, status=500)
+                return Response({"error": "AI model did not return valid JSON or JSON could not be extracted."}, status=500)
 
             parsed = json.loads(cleaned_output)
             cache.set(cache_key, parsed, timeout=60 * 60)
