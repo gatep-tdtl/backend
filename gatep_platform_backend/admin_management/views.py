@@ -697,69 +697,138 @@ class AdminDashboardAPIView(APIView):
 
 
 
-from django.db.models import Count
+# from django.db.models import Count
+# from rest_framework.views import APIView
+# from rest_framework.response import Response
+# from rest_framework import status
+# from talent_management.models import Resume
+# from .serializers import TalentDistributionSerializer, TalentFilterOptionsSerializer
+# import json
+
+# class TalentHeatmapAPIView(APIView):
+#     """
+#     API view to provide state-wise AI talent distribution data.
+#     Supports filtering by the talent's latest role and certification issuer.
+#     """
+#     def get(self, request, *args, **kwargs):
+#         # Get filter parameters from the request query string
+#         role = request.query_params.get('role', None)
+#         certification_issuer = request.query_params.get('certification', None)
+
+#         # Start with a base queryset, excluding records without a state
+#         queryset = Resume.objects.filter(is_deleted=False).exclude(
+#             current_state__isnull=True
+#         ).exclude(
+#             current_state__exact=''
+#         )
+
+#         # --- Apply Role Filter ---
+#         # The 'experience' field is a TextField storing a JSON string.
+#         # We must use a string-based search. This filter checks if the
+#         # string starts with `[{"title": "Your Role"`, which corresponds
+#         # to the latest job entry.
+#         if role:
+#             # This search is case-sensitive. Use __istartswith for case-insensitive.
+#             filter_string = f'[{{\"title\": \"{role}\"'
+#             queryset = queryset.filter(experience__startswith=filter_string)
+
+#         # --- Apply Certification Filter ---
+#         # The 'certification_details' field is a proper JSONField.
+#         # We can use the '__contains' lookup to find any record in the JSON array
+#         # that has the specified issuer.
+#         if certification_issuer:
+#             queryset = queryset.filter(
+#                 certification_details__contains=[{'issued_by': certification_issuer}]
+#             )
+
+#         # --- Aggregate the Data ---
+#         # Group the filtered results by 'current_state' and count the number of resumes.
+#         # Order the results by count in descending order.
+#         state_distribution = queryset.values('current_state').annotate(
+#             count=Count('id')
+#         ).order_by('-count')
+
+#         # Serialize the aggregated data
+#         serializer = TalentDistributionSerializer(state_distribution, many=True)
+        
+#         # The UI shows both a map and a sorted list, which use the same data source.
+#         response_data = {
+#             "heatmap_data": serializer.data,
+#             "top_states": serializer.data,
+#         }
+
+#         return Response(response_data, status=status.HTTP_200_OK)
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from django.db.models import Count
 from talent_management.models import Resume
-from .serializers import TalentDistributionSerializer, TalentFilterOptionsSerializer
-import json
-
+from talent_management.serializers import FullResumeSerializer
+ 
+ 
 class TalentHeatmapAPIView(APIView):
     """
-    API view to provide state-wise AI talent distribution data.
-    Supports filtering by the talent's latest role and certification issuer.
+    API to get experienced candidates distribution and details:
+    - State-wise
+    - District-wise
+    - Country-wise
+    - Total experienced candidates count
+    - Full experienced candidates details
     """
+ 
     def get(self, request, *args, **kwargs):
-        # Get filter parameters from the request query string
-        role = request.query_params.get('role', None)
-        certification_issuer = request.query_params.get('certification', None)
-
-        # Start with a base queryset, excluding records without a state
         queryset = Resume.objects.filter(is_deleted=False).exclude(
-            current_state__isnull=True
+            experience__isnull=True
         ).exclude(
-            current_state__exact=''
+            experience__exact=""
+        ).exclude(
+            experience="[]"
         )
-
-        # --- Apply Role Filter ---
-        # The 'experience' field is a TextField storing a JSON string.
-        # We must use a string-based search. This filter checks if the
-        # string starts with `[{"title": "Your Role"`, which corresponds
-        # to the latest job entry.
-        if role:
-            # This search is case-sensitive. Use __istartswith for case-insensitive.
-            filter_string = f'[{{\"title\": \"{role}\"'
-            queryset = queryset.filter(experience__startswith=filter_string)
-
-        # --- Apply Certification Filter ---
-        # The 'certification_details' field is a proper JSONField.
-        # We can use the '__contains' lookup to find any record in the JSON array
-        # that has the specified issuer.
-        if certification_issuer:
-            queryset = queryset.filter(
-                certification_details__contains=[{'issued_by': certification_issuer}]
-            )
-
-        # --- Aggregate the Data ---
-        # Group the filtered results by 'current_state' and count the number of resumes.
-        # Order the results by count in descending order.
-        state_distribution = queryset.values('current_state').annotate(
-            count=Count('id')
-        ).order_by('-count')
-
-        # Serialize the aggregated data
-        serializer = TalentDistributionSerializer(state_distribution, many=True)
-        
-        # The UI shows both a map and a sorted list, which use the same data source.
+ 
+        # ✅ Total experienced candidate count
+        total_experienced_count = queryset.count()
+ 
+        # ✅ Group by state
+        state_distribution = queryset.values("current_state").annotate(
+            count=Count("id")
+        ).order_by("-count")
+ 
+        # ✅ Group by district
+        district_distribution = queryset.values("current_district").annotate(
+            count=Count("id")
+        ).order_by("-count")
+ 
+        # ✅ Group by country
+        country_distribution = queryset.values("current_country").annotate(
+            count=Count("id")
+        ).order_by("-count")
+ 
+        # ✅ Experienced candidate details (full resume)
+        experienced_candidates = FullResumeSerializer(
+            queryset, many=True, context={"request": request}
+        ).data
+ 
         response_data = {
-            "heatmap_data": serializer.data,
-            "top_states": serializer.data,
+            "total_experienced_count": total_experienced_count,
+            "state_distribution": [
+                {"state": item["current_state"], "count": item["count"]}
+                for item in state_distribution if item["current_state"]
+            ],
+            "district_distribution": [
+                {"district": item["current_district"], "count": item["count"]}
+                for item in district_distribution if item["current_district"]
+            ],
+            "country_distribution": [
+                {"country": item["current_country"], "count": item["count"]}
+                for item in country_distribution if item["current_country"]
+            ],
+            "experienced_candidates": experienced_candidates
         }
-
+ 
         return Response(response_data, status=status.HTTP_200_OK)
 
-
+        
 class TalentFilterOptionsAPIView(APIView):
     """
     API view to provide unique roles and certification issuers to populate UI filters.
