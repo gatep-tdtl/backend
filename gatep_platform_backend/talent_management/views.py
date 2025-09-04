@@ -1977,33 +1977,44 @@ class MalpracticeDetectionView(APIView):
 
 class MockInterviewReportListView(APIView):
     """
-    API endpoint to retrieve a list of all mock interview report IDs 
+    API endpoint to retrieve a paginated list of all mock interview report IDs 
     for the authenticated user.
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
         """
-        Returns a JSON list of all mock interview result IDs associated with the 
+        Returns a paginated JSON list of mock interview result IDs for the 
         logged-in user, ordered by most recent first.
+        Use ?page=N for pagination (9 per page).
         """
         user = request.user
         try:
-            # Filter MockInterviewResult objects by the current user,
-            # order by most recent creation date, and efficiently fetch only the 'id' field.
-            report_ids = MockInterviewResult.objects.filter(user=user).order_by('-created_at').values_list('id', flat=True)
-            
-            # Convert the QuerySet of IDs to a simple list and return it in the response.
-            # Example response: [15, 12, 5]
-            return Response(list(report_ids), status=status.HTTP_200_OK)
+            page_size = 9
+            page = int(request.query_params.get('page', 1))
+            if page < 1:
+                page = 1
+
+            # Get all IDs ordered by most recent
+            all_ids = list(MockInterviewResult.objects.filter(user=user).order_by('-created_at').values_list('id', flat=True))
+            total = len(all_ids)
+            start = (page - 1) * page_size
+            end = start + page_size
+            paginated_ids = all_ids[start:end]
+
+            return Response({
+                "ids": paginated_ids,
+                "page": page,
+                "page_size": page_size,
+                "total": total,
+                "total_pages": (total + page_size - 1) // page_size
+            }, status=status.HTTP_200_OK)
         except Exception as e:
-            # Log the error for debugging purposes
             print(f"Error fetching mock interview report list for user {user.username}: {e}")
             return Response(
                 {"error": "An error occurred while fetching your interview report history."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 
 
 #################### speach to text model ################# 
